@@ -56,6 +56,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.animation.*
 import kotlinx.coroutines.delay
 import kotlin.math.min
 
@@ -82,14 +83,24 @@ class MainActivity : ComponentActivity() {
 private fun AppRoot(vm: GameViewModel = viewModel()) {
     var inGame by rememberSaveable { mutableStateOf(false) }
     val state by vm.state.collectAsState()
+
+    var displayedLevelInMenu by rememberSaveable { mutableStateOf(state.puzzleNumber) }
+
     if (!inGame) {
         MainMenu(
-            levelNumber = state.puzzleNumber,
+            levelNumber = displayedLevelInMenu,
             onPlay = {
                 vm.startRandomPuzzle()
                 inGame = true
             }
         )
+
+        LaunchedEffect(state.puzzleNumber) {
+            if (displayedLevelInMenu != state.puzzleNumber) {
+                delay(800L) // Wait for menu transition to settle
+                displayedLevelInMenu = state.puzzleNumber
+            }
+        }
         return
     }
     GameScreen(vm = vm, onReturnToMenu = { inGame = false })
@@ -113,12 +124,44 @@ private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
                 fontWeight = FontWeight.Bold,
                 fontSize = 42.sp
             )
-            Text(
-                text = stringResource(R.string.level_label, levelNumber),
-                color = Color.LightGray,
-                fontSize = 24.sp,
-                modifier = Modifier.padding(top = 16.dp)
-            )
+            val levelText = stringResource(R.string.level_label, levelNumber)
+            val parts = levelText.split(levelNumber.toString())
+            val prefix = parts.getOrNull(0) ?: ""
+            val suffix = parts.getOrNull(1) ?: ""
+
+            Row(
+                modifier = Modifier.padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (prefix.isNotEmpty()) {
+                    Text(
+                        text = prefix,
+                        color = Color.LightGray,
+                        fontSize = 24.sp
+                    )
+                }
+                AnimatedContent(
+                    targetState = levelNumber,
+                    transitionSpec = {
+                        (slideInVertically { height -> -height } + fadeIn())
+                            .togetherWith(slideOutVertically { height -> height } + fadeOut())
+                    },
+                    label = "LevelNumberChange"
+                ) { targetLevel ->
+                    Text(
+                        text = targetLevel.toString(),
+                        color = Color.LightGray,
+                        fontSize = 24.sp
+                    )
+                }
+                if (suffix.isNotEmpty()) {
+                    Text(
+                        text = suffix,
+                        color = Color.LightGray,
+                        fontSize = 24.sp
+                    )
+                }
+            }
         }
         Button(
             onClick = onPlay,
@@ -145,7 +188,7 @@ data class ConfettiParticle(
 )
 
 @Composable
-private fun SuccessScreen(onAnimationEnd: () -> Unit) {
+private fun SuccessScreen(timeSeconds: Int, onAnimationEnd: () -> Unit) {
     val words = stringArrayResource(R.array.success_words).toList()
     val word = remember { words.random() }
     
@@ -212,13 +255,23 @@ private fun SuccessScreen(onAnimationEnd: () -> Unit) {
             }
         }
         
-        Text(
-            text = word,
-            color = Color.White,
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.Center)
-        )
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = word,
+                color = Color.White,
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = formatTime(timeSeconds),
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 20.sp,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }
 
@@ -278,6 +331,16 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
 
     var showSuccessScreen by remember(level.id) { mutableStateOf(false) }
     var waveProgress by remember(level.id) { mutableStateOf(0f) }
+    var timerSeconds by remember(level.id) { mutableStateOf(0) }
+
+    LaunchedEffect(level.id, state.isLevelComplete, state.isGameOver) {
+        if (!state.isLevelComplete && !state.isGameOver) {
+            while (true) {
+                delay(1000L)
+                timerSeconds++
+            }
+        }
+    }
 
     var collisionGlowAlpha by remember(level.id) { mutableStateOf(0f) }
     LaunchedEffect(state.collisionTrigger) {
@@ -293,6 +356,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
 
     if (showSuccessScreen) {
         SuccessScreen(
+            timeSeconds = timerSeconds,
             onAnimationEnd = {
                 vm.incrementLevel()
                 onReturnToMenu()
@@ -382,7 +446,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 64.dp, bottom = 16.dp),
+                    .padding(top = 64.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
                 repeat(3) { index ->
@@ -397,11 +461,11 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
             }
 
             Text(
-                text = stringResource(R.string.level_label, state.puzzleNumber),
-                color = Color.White.copy(alpha = 0.9f),
-                fontSize = 22.sp,
+                text = formatTime(timerSeconds),
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
 
             Column(
@@ -720,4 +784,10 @@ private fun computeRopeFollowPoints(
     }
 
     return points
+}
+
+private fun formatTime(seconds: Int): String {
+    val mins = seconds / 60
+    val secs = seconds % 60
+    return "${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}"
 }
