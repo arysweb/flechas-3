@@ -2,9 +2,12 @@ package com.asrys.arrowgame
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val initialPuzzle = LevelRepository.generatePuzzle(puzzleNumber = 1)
@@ -19,6 +22,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun onArrowTap(arrowId: Int) {
         val current = _state.value
         if (current.isGameOver || current.isLevelComplete) return
+        if (current.movingArrows.any { it.id == arrowId }) return
 
         val level = current.puzzle ?: return
         val arrow = current.remaining.firstOrNull { it.id == arrowId } ?: return
@@ -36,14 +40,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        _state.update { state ->
-            val newRemaining = state.remaining.filterNot { it.id == arrow.id }
-            state.copy(
-                remaining = newRemaining,
-                lastBlockedArrowId = null,
-                isLevelComplete = newRemaining.isEmpty()
-            )
-        }
+        startArrowExitAnimation(level, arrow)
     }
 
     fun nextPuzzle() {
@@ -54,6 +51,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 puzzleNumber = nextNumber,
                 puzzle = puzzle,
                 remaining = puzzle.arrows,
+                movingArrows = emptyList(),
                 lastBlockedArrowId = null,
                 lives = 5,
                 isGameOver = false,
@@ -68,6 +66,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 puzzle = puzzle,
                 remaining = puzzle.arrows,
+                movingArrows = emptyList(),
                 lastBlockedArrowId = null,
                 lives = 5,
                 isGameOver = false,
@@ -83,6 +82,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 puzzle = puzzle,
                 remaining = puzzle.arrows,
+                movingArrows = emptyList(),
                 lastBlockedArrowId = null,
                 lives = 5,
                 isGameOver = false,
@@ -105,5 +105,73 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             y += arrow.direction.dy
         }
         return false
+    }
+
+    private fun startArrowExitAnimation(level: LevelMask, arrow: ArrowPiece) {
+        val puzzleId = level.id
+        val maxProgress = computeMaxProgressToExit(level, arrow)
+        _state.update { state ->
+            if (state.movingArrows.any { it.id == arrow.id }) state
+            else state.copy(
+                movingArrows = state.movingArrows + MovingArrowState(
+                    id = arrow.id,
+                    progressCells = 0f,
+                    maxProgressCells = maxProgress
+                ),
+                lastBlockedArrowId = null
+            )
+        }
+
+        viewModelScope.launch {
+            val frameMs = 8L
+            val speedCellsPerSecond = 6.6f
+            var linearProgress = 0f
+            while (linearProgress < maxProgress) {
+                delay(frameMs)
+                linearProgress = (linearProgress + speedCellsPerSecond * (frameMs / 1000f)).coerceAtMost(maxProgress)
+                val t = if (maxProgress <= 0f) 1f else (linearProgress / maxProgress).coerceIn(0f, 1f)
+                val eased = easeInOutCubic(t) * maxProgress
+                _state.update { state ->
+                    if (state.puzzle?.id != puzzleId) return@update state
+                    if (state.movingArrows.none { it.id == arrow.id }) return@update state
+                    state.copy(
+                        movingArrows = state.movingArrows.map { moving ->
+                            if (moving.id == arrow.id) moving.copy(progressCells = eased) else moving
+                        }
+                    )
+                }
+            }
+
+            _state.update { state ->
+                if (state.puzzle?.id != puzzleId) return@update state
+                val newRemaining = state.remaining.filterNot { it.id == arrow.id }
+                state.copy(
+                    remaining = newRemaining,
+                    movingArrows = state.movingArrows.filterNot { it.id == arrow.id },
+                    lastBlockedArrowId = null,
+                    isLevelComplete = newRemaining.isEmpty()
+                )
+            }
+        }
+    }
+
+    private fun computeMaxProgressToExit(level: LevelMask, arrow: ArrowPiece): Float {
+        val cells = if (arrow.path.isNotEmpty()) arrow.path else listOf(arrow.start)
+        var maxSteps = 0
+        for (cell in cells) {
+            val steps = when (arrow.direction) {
+                Direction.RIGHT -> level.width - cell.x
+                Direction.LEFT -> cell.x + 1
+                Direction.DOWN -> level.height - cell.y
+                Direction.UP -> cell.y + 1
+            }
+            if (steps > maxSteps) maxSteps = steps
+        }
+        return maxSteps.toFloat()
+    }
+
+    private fun easeInOutCubic(t: Float): Float {
+        return if (t < 0.5f) 4f * t * t * t
+        else 1f - ((-2f * t + 2f) * (-2f * t + 2f) * (-2f * t + 2f)) / 2f
     }
 }

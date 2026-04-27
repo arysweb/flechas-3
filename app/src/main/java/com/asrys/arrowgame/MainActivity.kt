@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -173,11 +174,54 @@ private fun ArrowBoard(
         val cw = size.width / level.width
         val ch = size.height / level.height
         val stroke = min(cw, ch) * 0.09f
+        val dotRadius = min(cw, ch) * 0.07f
+        val clearedDotColor = Color(0xFF9FB4FF).copy(alpha = 0.16f)
+        val movingById = state.movingArrows.associateBy { it.id }
+        val allArrowCells = level.arrows.flatMap { it.occupiedCells() }.toSet()
+        val remainingCells = state.remaining.flatMap { it.occupiedCells() }.toSet()
+        val movingVacatedCells = state.movingArrows.flatMap { moving ->
+            val arrow = level.arrows.firstOrNull { it.id == moving.id } ?: return@flatMap emptyList()
+            val cells = arrow.occupiedCells()
+            val vacatedCount = moving.progressCells.toInt().coerceIn(0, cells.size)
+            cells.take(vacatedCount)
+        }.toSet()
+        val clearedCells = (allArrowCells - remainingCells) + movingVacatedCells
+
+        for (cell in clearedCells) {
+            drawCircle(
+                color = clearedDotColor,
+                radius = dotRadius,
+                center = Offset(
+                    x = cell.x * cw + cw / 2f,
+                    y = cell.y * ch + ch / 2f
+                )
+            )
+        }
+
         for (arrow in state.remaining) {
-            val color = if (state.lastBlockedArrowId == arrow.id) Color(0xFFE53935) else Color.White
-            drawArrowPath(arrow = arrow, cellW = cw, cellH = ch, color = color, stroke = stroke)
+            val moving = movingById[arrow.id]
+            val movingRatio = if (moving == null || moving.maxProgressCells <= 0f) 0f
+            else (moving.progressCells / moving.maxProgressCells).coerceIn(0f, 1f)
+            val movingColor = lerp(Color.White, Color(0xFF00E676), movingRatio)
+            val color = when {
+                state.lastBlockedArrowId == arrow.id -> Color(0xFFE53935)
+                moving != null -> movingColor
+                else -> Color.White
+            }
+            drawArrowPath(
+                arrow = arrow,
+                cellW = cw,
+                cellH = ch,
+                color = color,
+                stroke = stroke,
+                progressCells = moving?.progressCells ?: 0f
+            )
         }
     }
+}
+
+private fun ArrowPiece.occupiedCells(): List<Cell> {
+    return if (path.isNotEmpty()) path else listOf(start)
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
@@ -185,19 +229,15 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
     cellW: Float,
     cellH: Float,
     color: Color,
-    stroke: Float
+    stroke: Float,
+    progressCells: Float = 0f
 ) {
     val base = min(cellW, cellH)
     val headLen = base * 0.24f
     val headHalfWidth = base * 0.12f
 
     val cells = if (arrow.path.isNotEmpty()) arrow.path else listOf(arrow.start)
-    val points = cells.map { cell ->
-        Offset(
-            x = cell.x * cellW + cellW / 2f,
-            y = cell.y * cellH + cellH / 2f
-        )
-    }
+    val points = computeRopeFollowPoints(cells, arrow.direction, progressCells, cellW, cellH)
     if (points.isEmpty()) return
 
     val fallbackDir = when (arrow.direction) {
@@ -286,4 +326,37 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
     }
     drawPath(path = triangle, color = color, style = Stroke(width = stroke * 0.3f))
     drawPath(path = triangle, color = color)
+}
+
+private fun computeRopeFollowPoints(
+    cells: List<Cell>,
+    direction: Direction,
+    progressCells: Float,
+    cellW: Float,
+    cellH: Float
+): List<Offset> {
+    if (cells.isEmpty()) return emptyList()
+    val tip = cells.last()
+    val whole = kotlin.math.floor(progressCells).toInt().coerceAtLeast(0)
+    val frac = (progressCells - whole).coerceIn(0f, 1f)
+
+    fun sampleAt(index: Int): Cell {
+        return if (index < cells.size) {
+            cells[index]
+        } else {
+            val extra = index - (cells.size - 1)
+            Cell(
+                x = tip.x + direction.dx * extra,
+                y = tip.y + direction.dy * extra
+            )
+        }
+    }
+
+    return cells.indices.map { i ->
+        val a = sampleAt(i + whole)
+        val b = sampleAt(i + whole + 1)
+        val x = (a.x + (b.x - a.x) * frac) * cellW + cellW / 2f
+        val y = (a.y + (b.y - a.y) * frac) * cellH + cellH / 2f
+        Offset(x = x, y = y)
+    }
 }

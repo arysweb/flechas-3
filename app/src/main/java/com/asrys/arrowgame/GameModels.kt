@@ -37,7 +37,14 @@ data class GameState(
     val lives: Int = 5,
     val puzzle: LevelMask? = null,
     val remaining: List<ArrowPiece> = emptyList(),
+    val movingArrows: List<MovingArrowState> = emptyList(),
     val lastBlockedArrowId: Int? = null,
     val isGameOver: Boolean = false,
     val isLevelComplete: Boolean = false
+)
+
+data class MovingArrowState(
+    val id: Int,
+    val progressCells: Float,
+    val maxProgressCells: Float
 )
