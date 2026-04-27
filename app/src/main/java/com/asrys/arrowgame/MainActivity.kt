@@ -222,6 +222,8 @@ private fun SuccessScreen(onAnimationEnd: () -> Unit) {
 
 @Composable
 private fun FailScreen(onRetry: () -> Unit) {
+    val words = listOf("FAIL!", "OUCH!", "OOPS!", "BLOCKED!", "CRASH!", "TRAPPED!", "TRY AGAIN!", "NOT QUITE!", "SO CLOSE!")
+    val word = remember { words.random() }
     var timeLeft by remember { mutableStateOf(10) }
 
     LaunchedEffect(Unit) {
@@ -238,10 +240,17 @@ private fun FailScreen(onRetry: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "OUT OF LIVES!",
+                text = word,
                 color = Color.Red,
                 fontSize = 42.sp,
                 fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "OUT OF LIVES!",
+                color = Color.Red.copy(alpha = 0.7f),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 8.dp)
             )
             Text(
                 text = "Try again in...",
