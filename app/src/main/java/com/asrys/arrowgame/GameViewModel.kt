@@ -19,7 +19,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     )
     val state: StateFlow<GameState> = _state
 
-    fun onArrowTap(arrowId: Int) {
+    fun onArrowTap(arrowId: Int, scale: Float = 1f) {
         val current = _state.value
         if (current.isGameOver || current.isLevelComplete) return
         if (current.movingArrows.any { it.id == arrowId }) return
@@ -40,7 +40,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        startArrowExitAnimation(level, arrow)
+        startArrowExitAnimation(level, arrow, scale)
+    }
+
+    fun incrementLevel() {
+        val nextNumber = _state.value.puzzleNumber + 1
+        _state.update {
+            it.copy(
+                puzzleNumber = nextNumber,
+                isLevelComplete = false
+            )
+        }
     }
 
     fun nextPuzzle() {
@@ -108,7 +118,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         return false
     }
 
-    private fun startArrowExitAnimation(level: LevelMask, arrow: ArrowPiece) {
+    private fun startArrowExitAnimation(level: LevelMask, arrow: ArrowPiece, scale: Float = 1f) {
         val puzzleId = level.id
         val maxProgress = computeExitProgress(level, arrow)
         _state.update { state ->
@@ -125,9 +135,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val frameMs = 5L
-            var currentSpeed = 30.0f // Lightning fast start
-            val maxSpeed = 150.0f    // Insanely fast top speed
-            val acceleration = 400.0f // Instant acceleration
+            // Speed is in cells/second. Divide by scale so that at 2× zoom,
+            // the arrow travels at the same perceived pixel speed as at 1× zoom.
+            val clampedScale = scale.coerceIn(0.5f, 4f)
+            var currentSpeed = (30.0f / clampedScale)  // fast start
+            val maxSpeed    = (150.0f / clampedScale)  // capped top speed
+            val acceleration = (400.0f / clampedScale) // ramp-up
             var progress = 0f
             while (progress < maxProgress) {
                 delay(frameMs)

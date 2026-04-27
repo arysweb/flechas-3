@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -71,59 +72,166 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AppRoot(vm: GameViewModel = viewModel()) {
     var inGame by rememberSaveable { mutableStateOf(false) }
+    val state by vm.state.collectAsState()
     if (!inGame) {
-        MainMenu(onPlay = {
-            vm.startRandomPuzzle()
-            inGame = true
-        })
+        MainMenu(
+            levelNumber = state.puzzleNumber,
+            onPlay = {
+                vm.startRandomPuzzle()
+                inGame = true
+            }
+        )
         return
     }
-    GameScreen(vm = vm)
+    GameScreen(vm = vm, onReturnToMenu = { inGame = false })
 }
 
 @Composable
-private fun MainMenu(onPlay: () -> Unit) {
+private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBg)
             .padding(20.dp)
     ) {
-        Text(
-            text = "Arrow Puzzle",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 42.sp,
-            modifier = Modifier.align(Alignment.Center)
-        )
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Arrow Puzzle",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 42.sp
+            )
+            Text(
+                text = "Level: $levelNumber",
+                color = Color.LightGray,
+                fontSize = 24.sp,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
         Button(
             onClick = onPlay,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E5BFF)),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .width(220.dp)
+                .padding(bottom = 32.dp)
+                .fillMaxWidth(0.8f)
+                .height(64.dp)
         ) {
-            Text("Play", color = Color.White, fontSize = 20.sp)
+            Text("Play", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
+data class ConfettiParticle(
+    val x: Float,
+    val y: Float,
+    val vx: Float,
+    val vy: Float,
+    val color: Color,
+    val radius: Float
+)
+
 @Composable
-private fun GameScreen(vm: GameViewModel) {
+private fun SuccessScreen(onAnimationEnd: () -> Unit) {
+    val words = listOf("AWESOME!", "NICE!", "BRAVO!", "GENIUS!", "AMAZING!", "SPECTACULAR!", "BRILLIANT!", "SMASHED IT!", "HOLY MOLY!")
+    val word = remember { words.random() }
+    
+    var particles by remember { mutableStateOf<List<ConfettiParticle>>(emptyList()) }
+    
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        modifier = Modifier.fillMaxSize().background(AppBg)
+    ) {
+        val density = LocalDensity.current.density
+        val screenWidth = maxWidth.value * density
+        val screenHeight = maxHeight.value * density
+        
+        LaunchedEffect(Unit) {
+            val colors = listOf(
+                Color(0xFF90A4AE), // Muted Blue-Grey
+                Color(0xFFAED581), // Muted Light Green
+                Color(0xFF7986CB), // Muted Indigo
+                Color(0xFFFFB74D), // Muted Orange
+                Color(0xFFBA68C8), // Muted Purple
+                Color(0xFF4DD0E1)  // Muted Cyan
+            )
+            var currentParticles = List(150) {
+                ConfettiParticle(
+                    x = screenWidth * kotlin.random.Random.nextFloat(),
+                    y = screenHeight,
+                    vx = kotlin.random.Random.nextFloat() * 600 - 300,
+                    vy = -(kotlin.random.Random.nextFloat() * screenHeight * 0.45f + screenHeight * 1.0f),
+                    color = colors.random(),
+                    radius = kotlin.random.Random.nextFloat() * 15f + 10f
+                )
+            }
+            particles = currentParticles
+            
+            val startTime = System.nanoTime()
+            var lastTime = startTime
+            while (true) {
+                androidx.compose.runtime.withFrameNanos { time ->
+                    val dt = (time - lastTime) / 1_000_000_000f
+                    lastTime = time
+                    
+                    currentParticles = currentParticles.map { p ->
+                        p.copy(
+                            x = p.x + p.vx * dt,
+                            y = p.y + p.vy * dt,
+                            vy = p.vy + screenHeight * 1.5f * dt
+                        )
+                    }
+                    particles = currentParticles
+                }
+                if (System.nanoTime() - startTime > 2_500_000_000L) {
+                    break
+                }
+            }
+            onAnimationEnd()
+        }
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            particles.forEach { p ->
+                drawCircle(
+                    color = p.color,
+                    radius = p.radius,
+                    center = Offset(p.x, p.y)
+                )
+            }
+        }
+        
+        Text(
+            text = word,
+            color = Color.White,
+            fontSize = 36.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+@Composable
+private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
     val state by vm.state.collectAsState()
     val level = state.puzzle ?: return
 
-    LaunchedEffect(state.isLevelComplete, state.isGameOver) {
-        when {
-            state.isLevelComplete -> {
-                delay(180L)
-                vm.nextPuzzle()
+    if (state.isLevelComplete) {
+        SuccessScreen(
+            onAnimationEnd = {
+                vm.incrementLevel()
+                onReturnToMenu()
             }
-            state.isGameOver -> {
-                delay(180L)
-                vm.resetPuzzle()
-            }
+        )
+        return
+    }
+
+    LaunchedEffect(state.isGameOver) {
+        if (state.isGameOver) {
+            delay(180L)
+            vm.resetPuzzle()
         }
     }
 
@@ -180,7 +288,7 @@ private fun GameScreen(vm: GameViewModel) {
             ArrowBoard(
                 level = level,
                 state = state,
-                onArrowTap = vm::onArrowTap
+                onArrowTap = { id -> vm.onArrowTap(id, scale) }
             )
         }
     }
@@ -196,25 +304,28 @@ private fun ArrowBoard(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(state.remaining) {
-                detectTapGestures { offset ->
-                    if (state.isGameOver || state.isLevelComplete) return@detectTapGestures
-                    val cw = size.width / level.width
-                    val ch = size.height / level.height
-                    val tx = (offset.x / cw).toInt()
-                    val ty = (offset.y / ch).toInt()
-                    state.remaining.firstOrNull { arrow ->
-                        arrow.path.any { it.x == tx && it.y == ty } ||
-                            (arrow.path.isEmpty() && arrow.start.x == tx && arrow.start.y == ty)
-                    }?.let {
-                        onArrowTap(it.id)
+                // onPress fires on finger-DOWN — maximally responsive, no release delay.
+                detectTapGestures(
+                    onPress = { tapOffset ->
+                        if (state.isGameOver || state.isLevelComplete) return@detectTapGestures
+                        val cw = size.width / level.width
+                        val ch = size.height / level.height
+                        val tx = (tapOffset.x / cw).toInt()
+                        val ty = (tapOffset.y / ch).toInt()
+                        state.remaining.firstOrNull { arrow ->
+                            arrow.path.any { it.x == tx && it.y == ty } ||
+                                (arrow.path.isEmpty() && arrow.start.x == tx && arrow.start.y == ty)
+                        }?.let {
+                            onArrowTap(it.id)
+                        }
                     }
-                }
+                )
             }
     ) {
         val cw = size.width / level.width
         val ch = size.height / level.height
-        val stroke = min(cw, ch) * 0.22f
-        val dotRadius = min(cw, ch) * 0.12f
+        val stroke = min(cw, ch) * 0.13f
+        val dotRadius = min(cw, ch) * 0.09f
         val clearedDotColor = Color(0xFF9FB4FF).copy(alpha = 0.16f)
         val movingById = state.movingArrows.associateBy { it.id }
         val allArrowCells = level.arrows.flatMap { it.occupiedCells() }.toSet()
