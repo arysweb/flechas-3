@@ -53,7 +53,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 remaining = puzzle.arrows,
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
-                lives = 5,
+                lives = 3,
                 isGameOver = false,
                 isLevelComplete = false
             )
@@ -68,7 +68,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 remaining = puzzle.arrows,
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
-                lives = 5,
+                lives = 3,
                 isGameOver = false,
                 isLevelComplete = false
             )
@@ -84,7 +84,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 remaining = puzzle.arrows,
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
-                lives = 5,
+                lives = 3,
                 isGameOver = false,
                 isLevelComplete = false
             )
@@ -109,7 +109,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun startArrowExitAnimation(level: LevelMask, arrow: ArrowPiece) {
         val puzzleId = level.id
-        val maxProgress = computeMaxProgressToExit(level, arrow)
+        val maxProgress = computeExitProgress(level, arrow)
         _state.update { state ->
             if (state.movingArrows.any { it.id == arrow.id }) state
             else state.copy(
@@ -154,7 +154,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun computeMaxProgressToExit(level: LevelMask, arrow: ArrowPiece): Float {
+    private fun computeExitProgress(level: LevelMask, arrow: ArrowPiece): Float {
         val cells = if (arrow.path.isNotEmpty()) arrow.path else listOf(arrow.start)
         var maxSteps = 0
         for (cell in cells) {

@@ -235,9 +235,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
     val base = min(cellW, cellH)
     val headLen = base * 0.24f
     val headHalfWidth = base * 0.12f
+    val isMoving = progressCells > 0f
 
     val cells = if (arrow.path.isNotEmpty()) arrow.path else listOf(arrow.start)
-    val points = computeRopeFollowPoints(cells, arrow.direction, progressCells, cellW, cellH)
+    val rawPoints = computeRopeFollowPoints(cells, arrow.direction, progressCells, cellW, cellH)
+    val points = rawPoints
     if (points.isEmpty()) return
 
     val fallbackDir = when (arrow.direction) {
@@ -299,8 +301,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
     }
 
     val end = points.last()
-    val (dx, dy) = if (points.size > 1) {
-        val prev = points[points.lastIndex - 1]
+    val (dx, dy) = if (isMoving) {
+        // Keep head orientation stable while moving.
+        fallbackDir
+    } else if (points.size > 1) {
+        // Use a slightly longer look-back while moving to reduce direction jitter at corners.
+        val lookBack = 1
+        val prev = points[(points.lastIndex - lookBack).coerceAtLeast(0)]
         val vx = end.x - prev.x
         val vy = end.y - prev.y
         val mag = kotlin.math.sqrt(vx * vx + vy * vy).coerceAtLeast(0.0001f)
@@ -338,7 +345,9 @@ private fun computeRopeFollowPoints(
     if (cells.isEmpty()) return emptyList()
     val tip = cells.last()
     val whole = kotlin.math.floor(progressCells).toInt().coerceAtLeast(0)
-    val frac = (progressCells - whole).coerceIn(0f, 1f)
+    val rawFrac = (progressCells - whole).coerceIn(0f, 1f)
+    // Stronger easing inside each tile transition to avoid robotic corner snapping.
+    val frac = rawFrac * rawFrac * (3f - 2f * rawFrac)
 
     fun sampleAt(index: Int): Cell {
         return if (index < cells.size) {
