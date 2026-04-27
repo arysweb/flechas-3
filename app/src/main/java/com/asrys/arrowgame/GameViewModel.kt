@@ -67,6 +67,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
                 lives = 3,
+                collisionTrigger = 0,
                 isGameOver = false,
                 isLevelComplete = false
             )
@@ -82,6 +83,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
                 lives = 3,
+                collisionTrigger = 0,
                 isGameOver = false,
                 isLevelComplete = false
             )
@@ -98,6 +100,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
                 lives = 3,
+                collisionTrigger = 0,
                 isGameOver = false,
                 isLevelComplete = false
             )

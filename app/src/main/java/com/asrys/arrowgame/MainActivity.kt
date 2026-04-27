@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -263,7 +268,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
     var showSuccessScreen by remember(level.id) { mutableStateOf(false) }
     var waveProgress by remember(level.id) { mutableStateOf(0f) }
 
-    var collisionGlowAlpha by remember { mutableStateOf(0f) }
+    var collisionGlowAlpha by remember(level.id) { mutableStateOf(0f) }
     LaunchedEffect(state.collisionTrigger) {
         if (state.collisionTrigger > 0) {
             androidx.compose.animation.core.Animatable(0.6f).animateTo(
@@ -360,28 +365,50 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
                             y = (offset.y + pan.y).coerceIn(-limitY, limitY)
                         )
                     }
-                },
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+                }
         ) {
-            Box(
+            // Lives Hearts
+            Row(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp)
                     .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offset.x,
-                        translationY = offset.y
-                    )
+                    .padding(top = 64.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.Center
             ) {
-                ArrowBoard(
-                    level = level,
-                    state = state,
-                    waveProgress = waveProgress,
-                    onArrowTap = { id -> vm.onArrowTap(id, scale) }
-                )
+                repeat(3) { index ->
+                    val isAlive = index < state.lives
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = if (isAlive) Color.Red else Color.Gray.copy(alpha = 0.5f),
+                        modifier = Modifier.size(40.dp).padding(horizontal = 4.dp)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offset.x,
+                            translationY = offset.y
+                        )
+                ) {
+                    ArrowBoard(
+                        level = level,
+                        state = state,
+                        waveProgress = waveProgress,
+                        onArrowTap = { id -> vm.onArrowTap(id, scale) }
+                    )
+                }
             }
         }
 
