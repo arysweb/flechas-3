@@ -7,7 +7,7 @@ $user = getenv('PGUSER') ?: 'postgres';
 $pass = getenv('PGPASSWORD') ?: '';
 
 try {
-    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=require";
     $pdo = new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERR_MODE => PDO::ERR_MODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import android.util.Log
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val api = GameApi.create()
     private val seedPool = mutableListOf<Int>()
 
@@ -26,7 +28,9 @@ import kotlinx.coroutines.launch
             try {
                 val response = api.getPuzzles(20)
                 seedPool.addAll(response.seeds)
+                Log.d("ArrowGame", "Successfully fetched ${response.seeds.size} seeds from API")
             } catch (e: Exception) {
+                Log.e("ArrowGame", "Failed to fetch seeds: ${e.message}")
                 // Fallback: local generation works fine if offline
             }
         }
@@ -69,8 +73,9 @@ import kotlinx.coroutines.launch
         viewModelScope.launch {
             try {
                 api.submitStats(StatsRequest(seed, timeSeconds.toDouble()))
+                Log.d("ArrowGame", "Successfully submitted stats for seed $seed")
             } catch (e: Exception) {
-                // Ignore - we don't want to break the game if stats fail
+                Log.e("ArrowGame", "Failed to submit stats: ${e.message}")
             }
         }
     }
