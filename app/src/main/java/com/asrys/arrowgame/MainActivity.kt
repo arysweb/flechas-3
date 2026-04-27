@@ -51,6 +51,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -106,13 +108,13 @@ private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Arrow Puzzle",
+                text = stringResource(R.string.menu_title),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 42.sp
             )
             Text(
-                text = "Level: $levelNumber",
+                text = stringResource(R.string.level_label, levelNumber),
                 color = Color.LightGray,
                 fontSize = 24.sp,
                 modifier = Modifier.padding(top = 16.dp)
@@ -128,7 +130,7 @@ private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
                 .fillMaxWidth(0.8f)
                 .height(64.dp)
         ) {
-            Text("Play", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.play_button), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -144,7 +146,7 @@ data class ConfettiParticle(
 
 @Composable
 private fun SuccessScreen(onAnimationEnd: () -> Unit) {
-    val words = listOf("AWESOME!", "NICE!", "BRAVO!", "GENIUS!", "AMAZING!", "SPECTACULAR!", "BRILLIANT!", "SMASHED IT!", "HOLY MOLY!")
+    val words = stringArrayResource(R.array.success_words).toList()
     val word = remember { words.random() }
     
     var particles by remember { mutableStateOf<List<ConfettiParticle>>(emptyList()) }
@@ -222,7 +224,7 @@ private fun SuccessScreen(onAnimationEnd: () -> Unit) {
 
 @Composable
 private fun FailScreen(onRetry: () -> Unit) {
-    val words = listOf("FAIL!", "OUCH!", "OOPS!", "BLOCKED!", "CRASH!", "TRAPPED!", "TRY AGAIN!", "NOT QUITE!", "SO CLOSE!")
+    val words = stringArrayResource(R.array.failure_words).toList()
     val word = remember { words.random() }
     var timeLeft by remember { mutableStateOf(10) }
 
@@ -246,14 +248,14 @@ private fun FailScreen(onRetry: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "OUT OF LIVES!",
+                text = stringResource(R.string.out_of_lives),
                 color = Color.Red.copy(alpha = 0.7f),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(top = 8.dp)
             )
             Text(
-                text = "Try again in...",
+                text = stringResource(R.string.try_again_in),
                 color = Color.LightGray,
                 fontSize = 24.sp,
                 modifier = Modifier.padding(top = 16.dp)
@@ -393,6 +395,14 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
                     )
                 }
             }
+
+            Text(
+                text = stringResource(R.string.level_label, state.puzzleNumber),
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
+            )
 
             Column(
                 modifier = Modifier.weight(1f),

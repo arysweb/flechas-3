@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Arrow Game</string>
+    <string name="menu_title">Arrow Puzzle</string>
+    <string name="play_button">PLAY</string>
+    <string name="level_label">LEVEL %d</string>
+    <string name="out_of_lives">OUT OF LIVES!</string>
+    <string name="try_again_in">Try again in...</string>
+    
+    <string-array name="success_words">
+        <item>AWESOME!</item>
+        <item>NICE!</item>
+        <item>BRAVO!</item>
+        <item>GENIUS!</item>
+        <item>AMAZING!</item>
+        <item>SPECTACULAR!</item>
+        <item>BRILLIANT!</item>
+        <item>SMASHED IT!</item>
+        <item>HOLY MOLY!</item>
+    </string-array>
+
+    <string-array name="failure_words">
+        <item>FAIL!</item>
+        <item>OUCH!</item>
+        <item>OOPS!</item>
+        <item>BLOCKED!</item>
+        <item>CRASH!</item>
+        <item>TRAPPED!</item>
+        <item>TRY AGAIN!</item>
+        <item>NOT QUITE!</item>
+        <item>SO CLOSE!</item>
+    </string-array>
+</resources>

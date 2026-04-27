@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jeu de flèches</string>
+    <string name="menu_title">Puzzle de flèches</string>
+    <string name="play_button">JOUER</string>
+    <string name="level_label">NIVEAU %d</string>
+    <string name="out_of_lives">PLUS DE VIES !</string>
+    <string name="try_again_in">Réessaye dans...</string>
+    
+    <string-array name="success_words">
+        <item>GÉNIAL !</item>
+        <item>BIEN JOUÉ !</item>
+        <item>BRAVO !</item>
+        <item>GÉNIE !</item>
+        <item>INCROYABLE !</item>
+        <item>SPECTACULAIRE !</item>
+        <item>BRILLANT !</item>
+        <item>RÉUSSI !</item>
+        <item>OH LÀ LÀ !</item>
+    </string-array>
+
+    <string-array name="failure_words">
+        <item>ÉCHEC !</item>
+        <item>AIE !</item>
+        <item>OOPS !</item>
+        <item>BLOQUÉ !</item>
+        <item>CRASH !</item>
+        <item>PIÉGÉ !</item>
+        <item>RÉESSAYE !</item>
+        <item>PAS TOUT À FAIT !</item>
+        <item>PRESQUE !</item>
+    </string-array>
+</resources>

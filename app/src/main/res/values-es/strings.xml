@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Juego de Flechas</string>
+    <string name="menu_title">Puzzle de Flechas</string>
+    <string name="play_button">JUGAR</string>
+    <string name="level_label">NIVEL %d</string>
+    <string name="out_of_lives">¡SIN VIDAS!</string>
+    <string name="try_again_in">Reintenta en...</string>
+    
+    <string-array name="success_words">
+        <item>¡INCREÍBLE!</item>
+        <item>¡BIEN!</item>
+        <item>¡BRAVO!</item>
+        <item>¡GENIO!</item>
+        <item>¡ASOMBROSO!</item>
+        <item>¡ESPECTACULAR!</item>
+        <item>¡BRILLANTE!</item>
+        <item>¡LO LOGRASTE!</item>
+        <item>¡MADRE MÍA!</item>
+    </string-array>
+
+    <string-array name="failure_words">
+        <item>¡FALLO!</item>
+        <item>¡AY!</item>
+        <item>¡OOPS!</item>
+        <item>¡BLOQUEADO!</item>
+        <item>¡CRASH!</item>
+        <item>¡ATRAPADO!</item>
+        <item>¡REINTENTA!</item>
+        <item>¡POR POCO!</item>
+        <item>¡CASI!</item>
+    </string-array>
+</resources>

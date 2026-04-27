@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pfeilspiel</string>
+    <string name="menu_title">Pfeilrätsel</string>
+    <string name="play_button">SPIELEN</string>
+    <string name="level_label">LEVEL %d</string>
+    <string name="out_of_lives">KEINE LEBEN MEHR!</string>
+    <string name="try_again_in">Versuche es erneut in...</string>
+    
+    <string-array name="success_words">
+        <item>SUPER!</item>
+        <item>KLASSE!</item>
+        <item>BRAVO!</item>
+        <item>GENIAL!</item>
+        <item>TOLL!</item>
+        <item>SPEKTAKULÄR!</item>
+        <item>BRILLANT!</item>
+        <item>GESCHAFFT!</item>
+        <item>WAHNSINN!</item>
+    </string-array>
+
+    <string-array name="failure_words">
+        <item>FEHLER!</item>
+        <item>AUTSCH!</item>
+        <item>OOPS!</item>
+        <item>BLOCKIERT!</item>
+        <item>CRASH!</item>
+        <item>GEFANGEN!</item>
+        <item>NOCHMAL!</item>
+        <item>FAST!</item>
+        <item>KNAPP!</item>
+    </string-array>
+</resources>

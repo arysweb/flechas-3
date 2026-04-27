@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jocul Săgeților</string>
+    <string name="menu_title">Puzzle cu Săgeți</string>
+    <string name="play_button">JOACĂ</string>
+    <string name="level_label">NIVEL %d</string>
+    <string name="out_of_lives">FĂRĂ VIEȚI!</string>
+    <string name="try_again_in">Reîncearcă în...</string>
+    
+    <string-array name="success_words">
+        <item>GROZAV!</item>
+        <item>BINE!</item>
+        <item>BRAVO!</item>
+        <item>GENIULE!</item>
+        <item>UIMITOR!</item>
+        <item>SPECTACULOS!</item>
+        <item>BRILIANT!</item>
+        <item>AI REUȘIT!</item>
+        <item>WOW!</item>
+    </string-array>
+
+    <string-array name="failure_words">
+        <item>EȘEC!</item>
+        <item>AU!</item>
+        <item>OOPS!</item>
+        <item>BLOCAT!</item>
+        <item>CRASH!</item>
+        <item>PRINS!</item>
+        <item>MAI ÎNCEARCĂ!</item>
+        <item>NU CHIAR!</item>
+        <item>APROAPE!</item>
+    </string-array>
+</resources>

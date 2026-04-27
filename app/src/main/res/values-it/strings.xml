@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gioco di frecce</string>
+    <string name="menu_title">Puzzle di frecce</string>
+    <string name="play_button">GIOCA</string>
+    <string name="level_label">LIVELLO %d</string>
+    <string name="out_of_lives">VITE ESAURITE!</string>
+    <string name="try_again_in">Riprova tra...</string>
+    
+    <string-array name="success_words">
+        <item>FANTASTICO!</item>
+        <item>OTTIMO!</item>
+        <item>BRAVO!</item>
+        <item>GENIO!</item>
+        <item>INCREDIBILE!</item>
+        <item>SPETTACOLARE!</item>
+        <item>BRILLANTE!</item>
+        <item>CE L'HAI FATTA!</item>
+        <item>MAMMA MIA!</item>
+    </string-array>
+
+    <string-array name="failure_words">
+        <item>FALLITO!</item>
+        <item>AHIA!</item>
+        <item>OOPS!</item>
+        <item>BLOCCATO!</item>
+        <item>CRASH!</item>
+        <item>TRAPPOLA!</item>
+        <item>RIPROVA!</item>
+        <item>QUASI!</item>
+        <item>PER UN PELO!</item>
+    </string-array>
+</resources>
