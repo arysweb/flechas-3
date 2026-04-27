@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -214,12 +216,64 @@ private fun SuccessScreen(onAnimationEnd: () -> Unit) {
 }
 
 @Composable
+private fun FailScreen(onRetry: () -> Unit) {
+    var timeLeft by remember { mutableStateOf(10) }
+
+    LaunchedEffect(Unit) {
+        while (timeLeft > 0) {
+            delay(1000L)
+            timeLeft--
+        }
+        onRetry()
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(AppBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "OUT OF LIVES!",
+                color = Color.Red,
+                fontSize = 42.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Try again in...",
+                color = Color.LightGray,
+                fontSize = 24.sp,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+            Text(
+                text = "$timeLeft",
+                color = Color.White,
+                fontSize = 64.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
     val state by vm.state.collectAsState()
     val level = state.puzzle ?: return
 
     var showSuccessScreen by remember(level.id) { mutableStateOf(false) }
     var waveProgress by remember(level.id) { mutableStateOf(0f) }
+
+    var collisionGlowAlpha by remember { mutableStateOf(0f) }
+    LaunchedEffect(state.collisionTrigger) {
+        if (state.collisionTrigger > 0) {
+            androidx.compose.animation.core.Animatable(0.6f).animateTo(
+                targetValue = 0f,
+                animationSpec = androidx.compose.animation.core.tween(durationMillis = 400)
+            ) {
+                collisionGlowAlpha = this.value
+            }
+        }
+    }
 
     if (showSuccessScreen) {
         SuccessScreen(
@@ -228,6 +282,11 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
                 onReturnToMenu()
             }
         )
+        return
+    }
+
+    if (state.isGameOver) {
+        FailScreen(onRetry = { vm.resumeWithOneLife() })
         return
     }
 
@@ -261,12 +320,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
         }
     }
 
-    LaunchedEffect(state.isGameOver) {
-        if (state.isGameOver) {
-            delay(180L)
-            vm.resetPuzzle()
-        }
-    }
+
 
     LaunchedEffect(level.id) {
         scale = 1.0f
@@ -282,51 +336,65 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
     val density = LocalDensity.current
     val paddingPx = with(density) { 24.dp.toPx() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppBg)
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    val newScale = (scale * zoom).coerceIn(1.0f, 2.2f)
-                    // The box width is screen width minus left and right padding
-                    val boxSize = size.width.toFloat() - paddingPx * 2f
-                    // By calculating maxOffset from the box size, the visual edge of the scaled 
-                    // content will perfectly align with the padding boundary when fully panned!
-                    val maxOffsetX = (boxSize * newScale - boxSize) / 2f
-                    val maxOffsetY = (boxSize * newScale - boxSize) / 2f
-                    
-                    scale = newScale
-                    val limitX = maxOf(0f, maxOffsetX)
-                    val limitY = maxOf(0f, maxOffsetY)
-                    
-                    offset = Offset(
-                        x = (offset.x + pan.x).coerceIn(-limitX, limitX),
-                        y = (offset.y + pan.y).coerceIn(-limitY, limitY)
-                    )
-                }
-            },
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
-                    translationX = offset.x,
-                    translationY = offset.y
-                )
+                .fillMaxSize()
+                .background(AppBg)
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val newScale = (scale * zoom).coerceIn(1.0f, 2.2f)
+                        // The box width is screen width minus left and right padding
+                        val boxSize = size.width.toFloat() - paddingPx * 2f
+                        // By calculating maxOffset from the box size, the visual edge of the scaled 
+                        // content will perfectly align with the padding boundary when fully panned!
+                        val maxOffsetX = (boxSize * newScale - boxSize) / 2f
+                        val maxOffsetY = (boxSize * newScale - boxSize) / 2f
+                        
+                        scale = newScale
+                        val limitX = maxOf(0f, maxOffsetX)
+                        val limitY = maxOf(0f, maxOffsetY)
+                        
+                        offset = Offset(
+                            x = (offset.x + pan.x).coerceIn(-limitX, limitX),
+                            y = (offset.y + pan.y).coerceIn(-limitY, limitY)
+                        )
+                    }
+                },
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            ArrowBoard(
-                level = level,
-                state = state,
-                waveProgress = waveProgress,
-                onArrowTap = { id -> vm.onArrowTap(id, scale) }
-            )
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offset.x,
+                        translationY = offset.y
+                    )
+            ) {
+                ArrowBoard(
+                    level = level,
+                    state = state,
+                    waveProgress = waveProgress,
+                    onArrowTap = { id -> vm.onArrowTap(id, scale) }
+                )
+            }
+        }
+
+        // Edge glows for collision
+        if (collisionGlowAlpha > 0f) {
+            Box(modifier = Modifier.fillMaxWidth().height(40.dp).align(Alignment.TopCenter)
+                .background(Brush.verticalGradient(listOf(Color.Red.copy(alpha = collisionGlowAlpha), Color.Transparent))))
+            Box(modifier = Modifier.fillMaxWidth().height(40.dp).align(Alignment.BottomCenter)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Red.copy(alpha = collisionGlowAlpha)))))
+            Box(modifier = Modifier.fillMaxHeight().width(40.dp).align(Alignment.CenterStart)
+                .background(Brush.horizontalGradient(listOf(Color.Red.copy(alpha = collisionGlowAlpha), Color.Transparent))))
+            Box(modifier = Modifier.fillMaxHeight().width(40.dp).align(Alignment.CenterEnd)
+                .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.Red.copy(alpha = collisionGlowAlpha)))))
         }
     }
 }
@@ -413,7 +481,9 @@ private fun ArrowBoard(
             val movingColor = lerp(Color.White, Color(0xFF00E676), movingRatio)
             val color = when {
                 state.lastBlockedArrowId == arrow.id -> Color(0xFFE53935)
-                moving != null -> movingColor
+                moving != null -> {
+                    if (moving.isObstructed) Color(0xFFE53935) else movingColor
+                }
                 else -> Color.White
             }
             drawArrowPath(

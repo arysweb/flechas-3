@@ -26,21 +26,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         val level = current.puzzle ?: return
         val arrow = current.remaining.firstOrNull { it.id == arrowId } ?: return
-        val pathBlocked = isPathObstructed(level, arrow, current.remaining, current.movingArrows)
+        
+        val collisionDistance = getCollisionDistance(level, arrow, current.remaining, current.movingArrows)
 
-        if (pathBlocked) {
-            val nextLives = (current.lives - 1).coerceAtLeast(0)
-            _state.update {
-                it.copy(
-                    lives = nextLives,
-                    lastBlockedArrowId = arrow.id,
-                    isGameOver = nextLives == 0
-                )
-            }
+        if (collisionDistance != null) {
+            startObstructedArrowAnimation(level, arrow, collisionDistance, scale)
             return
         }
 
         startArrowExitAnimation(level, arrow, scale)
+    }
+
+    fun resumeWithOneLife() {
+        _state.update {
+            it.copy(
+                lives = 1,
+                isGameOver = false
+            )
+        }
     }
 
     fun incrementLevel() {
@@ -101,7 +104,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun isPathObstructed(level: LevelMask, arrow: ArrowPiece, all: List<ArrowPiece>, moving: List<MovingArrowState>): Boolean {
+    private fun getCollisionDistance(level: LevelMask, arrow: ArrowPiece, all: List<ArrowPiece>, moving: List<MovingArrowState>): Float? {
         val movingIds = moving.map { it.id }.toSet()
         val occupied = all
             .filterNot { it.id == arrow.id || movingIds.contains(it.id) }
@@ -110,12 +113,71 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val origin = arrow.path.lastOrNull() ?: arrow.start
         var x = origin.x + arrow.direction.dx
         var y = origin.y + arrow.direction.dy
+        var distance = 1
         while (x >= 0 && y >= 0 && x < level.width && y < level.height) {
-            if (occupied.contains(Cell(x, y))) return true
+            if (occupied.contains(Cell(x, y))) return distance.toFloat() - 0.7f
             x += arrow.direction.dx
             y += arrow.direction.dy
+            distance++
         }
-        return false
+        return null
+    }
+
+    private fun startObstructedArrowAnimation(level: LevelMask, arrow: ArrowPiece, distance: Float, scale: Float = 1f) {
+        val puzzleId = level.id
+        val maxProgress = distance
+        
+        _state.update { state ->
+            if (state.movingArrows.any { it.id == arrow.id }) state
+            else state.copy(
+                movingArrows = state.movingArrows + MovingArrowState(
+                    id = arrow.id,
+                    progressCells = 0f,
+                    maxProgressCells = maxProgress,
+                    isObstructed = true
+                ),
+                lastBlockedArrowId = null
+            )
+        }
+
+        viewModelScope.launch {
+            val frameMs = 5L
+            val clampedScale = scale.coerceIn(0.5f, 4f)
+            var currentSpeed = (30.0f / clampedScale)
+            val maxSpeed    = (150.0f / clampedScale)
+            val acceleration = (400.0f / clampedScale)
+            var progress = 0f
+            while (progress < maxProgress) {
+                delay(frameMs)
+                currentSpeed = (currentSpeed + acceleration * (frameMs / 1000f)).coerceAtMost(maxSpeed)
+                progress = (progress + currentSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
+                val progressSnapshot = progress
+                _state.update { state ->
+                    if (state.puzzle?.id != puzzleId) return@update state
+                    if (state.movingArrows.none { it.id == arrow.id }) return@update state
+                    state.copy(
+                        movingArrows = state.movingArrows.map { moving ->
+                            if (moving.id == arrow.id) moving.copy(progressCells = progressSnapshot) else moving
+                        }
+                    )
+                }
+            }
+
+            // Hit! Remove arrow from moving (snaps back) and trigger collision effects
+            val current = _state.value
+            val nextLives = (current.lives - 1).coerceAtLeast(0)
+            
+            _state.update { state ->
+                if (state.puzzle?.id != puzzleId) return@update state
+                state.copy(
+                    movingArrows = state.movingArrows.filterNot { it.id == arrow.id },
+                    lives = nextLives,
+                    lastBlockedArrowId = arrow.id,
+                    collisionTrigger = state.collisionTrigger + 1,
+                    isGameOver = nextLives == 0
+                )
+            }
+        }
     }
 
     private fun startArrowExitAnimation(level: LevelMask, arrow: ArrowPiece, scale: Float = 1f) {

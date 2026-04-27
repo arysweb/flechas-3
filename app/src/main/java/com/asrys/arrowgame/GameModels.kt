@@ -39,6 +39,7 @@ data class GameState(
     val remaining: List<ArrowPiece> = emptyList(),
     val movingArrows: List<MovingArrowState> = emptyList(),
     val lastBlockedArrowId: Int? = null,
+    val collisionTrigger: Int = 0,
     val isGameOver: Boolean = false,
     val isLevelComplete: Boolean = false
 )
@@ -46,5 +47,6 @@ data class GameState(
 data class MovingArrowState(
     val id: Int,
     val progressCells: Float,
-    val maxProgressCells: Float
+    val maxProgressCells: Float,
+    val isObstructed: Boolean = false
 )
