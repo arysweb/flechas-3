@@ -26,7 +26,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         val level = current.puzzle ?: return
         val arrow = current.remaining.firstOrNull { it.id == arrowId } ?: return
-        val pathBlocked = isPathObstructed(level, arrow, current.remaining)
+        val pathBlocked = isPathObstructed(level, arrow, current.remaining, current.movingArrows)
 
         if (pathBlocked) {
             val nextLives = (current.lives - 1).coerceAtLeast(0)
@@ -91,9 +91,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun isPathObstructed(level: LevelMask, arrow: ArrowPiece, all: List<ArrowPiece>): Boolean {
+    private fun isPathObstructed(level: LevelMask, arrow: ArrowPiece, all: List<ArrowPiece>, moving: List<MovingArrowState>): Boolean {
+        val movingIds = moving.map { it.id }.toSet()
         val occupied = all
-            .filterNot { it.id == arrow.id }
+            .filterNot { it.id == arrow.id || movingIds.contains(it.id) }
             .flatMap { other -> if (other.path.isNotEmpty()) other.path else listOf(other.start) }
             .toHashSet()
         val origin = arrow.path.lastOrNull() ?: arrow.start
