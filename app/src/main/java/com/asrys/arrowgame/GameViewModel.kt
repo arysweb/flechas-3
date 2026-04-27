@@ -9,15 +9,33 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class GameViewModel(application: Application) : AndroidViewModel(application) {
-    private val initialPuzzle = LevelRepository.generatePuzzle(puzzleNumber = 1)
-    private val _state = MutableStateFlow(
-        GameState(
-            puzzle = initialPuzzle,
-            remaining = initialPuzzle.arrows
-        )
-    )
+    private val api = GameApi.create()
+    private val seedPool = mutableListOf<Int>()
+
+    private val _state = MutableStateFlow(GameState())
     val state: StateFlow<GameState> = _state
+
+    init {
+        // Start by fetching seeds and initializing the first puzzle
+        fetchSeeds()
+        startRandomPuzzle()
+    }
+
+    private fun fetchSeeds() {
+        viewModelScope.launch {
+            try {
+                val response = api.getPuzzles(20)
+                seedPool.addAll(response.seeds)
+            } catch (e: Exception) {
+                // Fallback: local generation works fine if offline
+            }
+        }
+    }
+
+    private fun getNextSeed(): Int {
+        if (seedPool.size < 5) fetchSeeds()
+        return if (seedPool.isNotEmpty()) seedPool.removeAt(0) else kotlin.random.Random.nextInt()
+    }
 
     fun onArrowTap(arrowId: Int, scale: Float = 1f) {
         val current = _state.value
@@ -46,23 +64,26 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun incrementLevel() {
-        val nextNumber = _state.value.puzzleNumber + 1
-        _state.update {
-            it.copy(
-                puzzleNumber = nextNumber,
-                isLevelComplete = false
-            )
+    fun submitStats(timeSeconds: Int) {
+        val seed = _state.value.currentSeed ?: return
+        viewModelScope.launch {
+            try {
+                api.submitStats(StatsRequest(seed, timeSeconds.toDouble()))
+            } catch (e: Exception) {
+                // Ignore - we don't want to break the game if stats fail
+            }
         }
     }
 
     fun nextPuzzle() {
         val nextNumber = _state.value.puzzleNumber + 1
-        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = nextNumber)
+        val seed = getNextSeed()
+        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = nextNumber, seed = seed)
         _state.update {
             it.copy(
                 puzzleNumber = nextNumber,
                 puzzle = puzzle,
+                currentSeed = seed,
                 remaining = puzzle.arrows,
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
@@ -75,10 +96,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startRandomPuzzle() {
-        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = _state.value.puzzleNumber)
+        val seed = getNextSeed()
+        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = _state.value.puzzleNumber, seed = seed)
         _state.update {
             it.copy(
                 puzzle = puzzle,
+                currentSeed = seed,
                 remaining = puzzle.arrows,
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,
@@ -92,10 +115,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetPuzzle() {
         val current = _state.value
-        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = current.puzzleNumber)
+        val seed = current.currentSeed ?: getNextSeed()
+        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = current.puzzleNumber, seed = seed)
         _state.update {
             it.copy(
                 puzzle = puzzle,
+                currentSeed = seed,
                 remaining = puzzle.arrows,
                 movingArrows = emptyList(),
                 lastBlockedArrowId = null,

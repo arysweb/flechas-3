@@ -36,6 +36,7 @@ data class GameState(
     val puzzleNumber: Int = 1,
     val lives: Int = 3,
     val puzzle: LevelMask? = null,
+    val currentSeed: Int? = null,
     val remaining: List<ArrowPiece> = emptyList(),
     val movingArrows: List<MovingArrowState> = emptyList(),
     val lastBlockedArrowId: Int? = null,

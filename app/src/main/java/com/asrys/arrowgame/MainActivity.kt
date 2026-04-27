@@ -358,7 +358,8 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
         SuccessScreen(
             timeSeconds = timerSeconds,
             onAnimationEnd = {
-                vm.incrementLevel()
+                vm.submitStats(timerSeconds)
+                vm.nextPuzzle()
                 onReturnToMenu()
             }
         )
