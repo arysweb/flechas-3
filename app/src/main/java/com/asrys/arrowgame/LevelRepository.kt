@@ -98,12 +98,14 @@ object LevelRepository {
                             maxTurns = turnProfile.second,
                             random = random
                         )
-                        val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
-                        if (score > bestScore) {
-                            best = candidate
-                            bestScore = score
+                        if (candidate.isNotEmpty() && isExitClear(candidate, blocked, width, height)) {
+                            val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
+                            if (score > bestScore) {
+                                best = candidate
+                                bestScore = score
+                            }
+                            if (best.size >= targetLen) return best
                         }
-                        if (best.size >= targetLen) return best
                     }
                 }
             }
@@ -133,10 +135,12 @@ object LevelRepository {
                     maxTurns = 2,
                     random = random
                 )
-                val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
-                if (score > bestScore) {
-                    best = candidate
-                    bestScore = score
+                if (candidate.isNotEmpty() && isExitClear(candidate, blocked, width, height)) {
+                    val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
+                    if (score > bestScore) {
+                        best = candidate
+                        bestScore = score
+                    }
                 }
             }
         }
@@ -255,6 +259,20 @@ object LevelRepository {
             tip.y > prev.y -> Direction.DOWN
             else -> Direction.UP
         }
+    }
+
+    private fun isExitClear(path: List<Cell>, blocked: Set<Cell>, width: Int, height: Int): Boolean {
+        if (path.size < 2) return false
+        val tip = path.last()
+        val dir = directionAtTip(path)
+        var x = tip.x + dir.dx
+        var y = tip.y + dir.dy
+        while (x in 0 until width && y in 0 until height) {
+            if (Cell(x, y) in blocked) return false
+            x += dir.dx
+            y += dir.dy
+        }
+        return true
     }
 
     private fun bendType(path: List<Cell>): ArrowBend {
