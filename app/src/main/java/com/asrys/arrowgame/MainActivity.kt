@@ -344,16 +344,12 @@ private fun computeRopeFollowPoints(
 ): List<Offset> {
     if (cells.isEmpty()) return emptyList()
     val tip = cells.last()
-    val whole = kotlin.math.floor(progressCells).toInt().coerceAtLeast(0)
-    val rawFrac = (progressCells - whole).coerceIn(0f, 1f)
-    // Stronger easing inside each tile transition to avoid robotic corner snapping.
-    val frac = rawFrac * rawFrac * (3f - 2f * rawFrac)
 
-    fun sampleAt(index: Int): Cell {
-        return if (index < cells.size) {
-            cells[index]
+    fun trackCell(i: Int): Cell {
+        return if (i < cells.size) {
+            cells[i]
         } else {
-            val extra = index - (cells.size - 1)
+            val extra = i - (cells.size - 1)
             Cell(
                 x = tip.x + direction.dx * extra,
                 y = tip.y + direction.dy * extra
@@ -361,11 +357,43 @@ private fun computeRopeFollowPoints(
         }
     }
 
-    return cells.indices.map { i ->
-        val a = sampleAt(i + whole)
-        val b = sampleAt(i + whole + 1)
+    fun pointAt(t: Float): Offset {
+        val i = kotlin.math.floor(t).toInt()
+        val frac = t - i
+        val a = trackCell(i)
+        val b = trackCell(i + 1)
         val x = (a.x + (b.x - a.x) * frac) * cellW + cellW / 2f
         val y = (a.y + (b.y - a.y) * frac) * cellH + cellH / 2f
-        Offset(x = x, y = y)
+        return Offset(x, y)
     }
+
+    val points = mutableListOf<Offset>()
+    val tTail = progressCells
+    val tHead = (cells.size - 1).coerceAtLeast(0).toFloat() + progressCells
+
+    points.add(pointAt(tTail))
+
+    val firstInt = kotlin.math.floor(tTail).toInt() + 1
+    val lastInt = kotlin.math.ceil(tHead).toInt() - 1
+
+    for (i in firstInt..lastInt) {
+        val c = trackCell(i)
+        val p = Offset(c.x * cellW + cellW / 2f, c.y * cellH + cellH / 2f)
+        val lastP = points.last()
+        val distSq = (p.x - lastP.x) * (p.x - lastP.x) + (p.y - lastP.y) * (p.y - lastP.y)
+        if (distSq > 0.1f) {
+            points.add(p)
+        }
+    }
+
+    if (tHead > tTail) {
+        val pHead = pointAt(tHead)
+        val lastP = points.last()
+        val distSq = (pHead.x - lastP.x) * (pHead.x - lastP.x) + (pHead.y - lastP.y) * (pHead.y - lastP.y)
+        if (distSq > 0.1f) {
+            points.add(pHead)
+        }
+    }
+
+    return points
 }

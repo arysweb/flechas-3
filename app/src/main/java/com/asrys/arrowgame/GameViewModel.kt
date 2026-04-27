@@ -124,11 +124,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val frameMs = 5L
-            val speedCellsPerSecond = 12.0f
+            var currentSpeed = 4.0f // Initial slow start for fluid liftoff
+            val maxSpeed = 24.0f
+            val acceleration = 45.0f
             var progress = 0f
             while (progress < maxProgress) {
                 delay(frameMs)
-                progress = (progress + speedCellsPerSecond * (frameMs / 1000f)).coerceAtMost(maxProgress)
+                currentSpeed = (currentSpeed + acceleration * (frameMs / 1000f)).coerceAtMost(maxSpeed)
+                progress = (progress + currentSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
                 val progressSnapshot = progress
                 _state.update { state ->
                     if (state.puzzle?.id != puzzleId) return@update state
