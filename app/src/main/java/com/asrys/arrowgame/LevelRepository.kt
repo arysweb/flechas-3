@@ -9,17 +9,75 @@ object LevelRepository {
         val random = Random(seed)
         val width = boardSize
         val height = boardSize
-        val allCells = (0 until height).flatMap { y -> (0 until width).map { x -> Cell(x, y) } }
+        val allCells = generateRandomShape(width, height, random)
 
         val arrows = generateCellBasedArrows(width, height, allCells, random)
 
         return LevelMask(
-            id = "puzzle_$puzzleNumber",
+            id = "puzzle_${puzzleNumber}_${random.nextInt()}",
             width = width,
             height = height,
             activeCells = allCells.toSet(),
             arrows = arrows
         )
+    }
+
+    private fun generateRandomShape(width: Int, height: Int, random: Random): List<Cell> {
+        val shapeType = random.nextInt(5)
+        val cells = mutableSetOf<Cell>()
+        when (shapeType) {
+            0, 1 -> {
+                val targetSize = random.nextInt((width * height * 0.4).toInt(), (width * height * 0.7).toInt())
+                cells.add(Cell(width / 2, height / 2))
+                val queue = mutableListOf(Cell(width / 2, height / 2))
+                while (cells.size < targetSize && queue.isNotEmpty()) {
+                    val current = queue.random(random)
+                    val neighbors = Direction.entries.map { Cell(current.x + it.dx, current.y + it.dy) }
+                        .filter { it.x in 2 until width - 2 && it.y in 2 until height - 2 && it !in cells }
+                    if (neighbors.isEmpty()) {
+                        queue.remove(current)
+                    } else {
+                        val next = neighbors.random(random)
+                        cells.add(next)
+                        queue.add(next)
+                    }
+                }
+            }
+            2 -> {
+                val cx = width / 2
+                val cy = height / 2
+                val radius = width / 2 - 2
+                for (y in 0 until height) {
+                    for (x in 0 until width) {
+                        if (kotlin.math.abs(x - cx) + kotlin.math.abs(y - cy) <= radius) {
+                            cells.add(Cell(x, y))
+                        }
+                    }
+                }
+            }
+            3 -> {
+                val cx = width / 2
+                val cy = height / 2
+                val thickness = width / 3 - 1
+                for (y in 2 until height - 2) {
+                    for (x in 2 until width - 2) {
+                        if (kotlin.math.abs(x - cx) < thickness || kotlin.math.abs(y - cy) < thickness) {
+                            cells.add(Cell(x, y))
+                        }
+                    }
+                }
+            }
+            4 -> {
+                for (y in 2 until height - 2) {
+                    for (x in 2 until width - 2) {
+                        if (x < 6 || x > width - 7 || y < 6 || y > height - 7) {
+                            cells.add(Cell(x, y))
+                        }
+                    }
+                }
+            }
+        }
+        return cells.toList()
     }
 
     private fun generateCellBasedArrows(
@@ -32,6 +90,7 @@ object LevelRepository {
         val centerY = (height - 1) / 2f
         val blocked = mutableSetOf<Cell>()
         val arrows = mutableListOf<ArrowPiece>()
+        val activeShape = cells.toSet()
 
         val orderedCells = cells.sortedBy { c ->
             val dx = c.x - centerX
@@ -41,14 +100,14 @@ object LevelRepository {
 
         for (start in orderedCells) {
             if (start in blocked) continue
-            val path = buildPathFromStart(start, width, height, centerX, centerY, blocked, random)
+            val path = buildPathFromStart(start, width, height, centerX, centerY, blocked, activeShape, random)
             addArrowIfValid(path, blocked, arrows)
         }
 
         // Second pass: fill remaining tiny gaps with very short arrows.
         for (start in orderedCells) {
             if (start in blocked) continue
-            val filler = buildFillerPathFromStart(start, width, height, blocked, random)
+            val filler = buildFillerPathFromStart(start, width, height, blocked, activeShape, random)
             addArrowIfValid(filler, blocked, arrows)
         }
 
@@ -62,6 +121,7 @@ object LevelRepository {
         centerX: Float,
         centerY: Float,
         blocked: Set<Cell>,
+        activeShape: Set<Cell>,
         random: Random
     ): List<Cell> {
         val distanceNorm = normalizedDistance(start, width, height, centerX, centerY)
@@ -91,15 +151,14 @@ object LevelRepository {
                             start = start,
                             firstDir = firstDir,
                             targetLength = targetLen,
-                            width = width,
-                            height = height,
                             blocked = blocked,
+                            activeShape = activeShape,
                             minTurns = turnProfile.first,
                             maxTurns = turnProfile.second,
                             random = random
                         )
                         if (candidate.isNotEmpty() && isExitClear(candidate, blocked, width, height)) {
-                            val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
+                            val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, activeShape)
                             if (score > bestScore) {
                                 best = candidate
                                 bestScore = score
@@ -118,6 +177,7 @@ object LevelRepository {
         width: Int,
         height: Int,
         blocked: Set<Cell>,
+        activeShape: Set<Cell>,
         random: Random
     ): List<Cell> {
         var best = emptyList<Cell>()
@@ -128,15 +188,14 @@ object LevelRepository {
                     start = start,
                     firstDir = firstDir,
                     targetLength = 3,
-                    width = width,
-                    height = height,
                     blocked = blocked,
+                    activeShape = activeShape,
                     minTurns = 1,
                     maxTurns = 2,
                     random = random
                 )
                 if (candidate.isNotEmpty() && isExitClear(candidate, blocked, width, height)) {
-                    val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
+                    val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, activeShape)
                     if (score > bestScore) {
                         best = candidate
                         bestScore = score
@@ -151,9 +210,8 @@ object LevelRepository {
         start: Cell,
         firstDir: Direction,
         targetLength: Int,
-        width: Int,
-        height: Int,
         blocked: Set<Cell>,
+        activeShape: Set<Cell>,
         minTurns: Int,
         maxTurns: Int,
         random: Random
@@ -174,8 +232,7 @@ object LevelRepository {
                 val next = Cell(current.x + nextDir.dx, current.y + nextDir.dy)
                 nextDir to next
             }.filter { (_, next) ->
-                next.x in 0 until width &&
-                    next.y in 0 until height &&
+                next in activeShape &&
                     next !in blocked &&
                     next !in local
             }
@@ -189,7 +246,7 @@ object LevelRepository {
                     isTurn -> -3
                     else -> 2
                 }
-                val openness = freeNeighborCount(nextCell, blocked + local, width, height)
+                val openness = freeNeighborCount(nextCell, blocked + local, activeShape)
                 // Prefer tighter/crowded continuations for more visual tangles.
                 turnBias + (openness * 2) + random.nextInt(0, 5)
             } ?: break
@@ -212,13 +269,14 @@ object LevelRepository {
         else -> 1 to 2          // short/tiny: can still kink
     }
 
-    private fun freeNeighborCount(cell: Cell?, blocked: Set<Cell>, width: Int, height: Int): Int {
+    private fun freeNeighborCount(cell: Cell?, blocked: Set<Cell>, activeShape: Set<Cell>): Int {
         if (cell == null) return 0
         var count = 0
         for (dir in Direction.entries) {
             val nx = cell.x + dir.dx
             val ny = cell.y + dir.dy
-            if (nx in 0 until width && ny in 0 until height && Cell(nx, ny) !in blocked) {
+            val nextCell = Cell(nx, ny)
+            if (nextCell in activeShape && nextCell !in blocked) {
                 count++
             }
         }

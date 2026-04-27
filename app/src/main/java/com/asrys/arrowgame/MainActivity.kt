@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.text.font.FontWeight
@@ -134,6 +135,9 @@ private fun GameScreen(vm: GameViewModel) {
         offset = Offset.Zero
     }
 
+    val density = LocalDensity.current
+    val paddingPx = with(density) { 24.dp.toPx() }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -141,7 +145,10 @@ private fun GameScreen(vm: GameViewModel) {
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     val newScale = (scale * zoom).coerceIn(1.0f, 2.2f)
-                    val boxSize = size.width.toFloat()
+                    // The box width is screen width minus left and right padding
+                    val boxSize = size.width.toFloat() - paddingPx * 2f
+                    // By calculating maxOffset from the box size, the visual edge of the scaled 
+                    // content will perfectly align with the padding boundary when fully panned!
                     val maxOffsetX = (boxSize * newScale - boxSize) / 2f
                     val maxOffsetY = (boxSize * newScale - boxSize) / 2f
                     
@@ -160,6 +167,7 @@ private fun GameScreen(vm: GameViewModel) {
     ) {
         Box(
             modifier = Modifier
+                .padding(horizontal = 24.dp)
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .graphicsLayer(
