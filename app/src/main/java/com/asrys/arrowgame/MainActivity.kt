@@ -213,8 +213,8 @@ private fun ArrowBoard(
     ) {
         val cw = size.width / level.width
         val ch = size.height / level.height
-        val stroke = min(cw, ch) * 0.09f
-        val dotRadius = min(cw, ch) * 0.07f
+        val stroke = min(cw, ch) * 0.22f
+        val dotRadius = min(cw, ch) * 0.12f
         val clearedDotColor = Color(0xFF9FB4FF).copy(alpha = 0.16f)
         val movingById = state.movingArrows.associateBy { it.id }
         val allArrowCells = level.arrows.flatMap { it.occupiedCells() }.toSet()
@@ -273,8 +273,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
     progressCells: Float = 0f
 ) {
     val base = min(cellW, cellH)
-    val headLen = base * 0.24f
-    val headHalfWidth = base * 0.12f
+    val headLen = base * 0.38f
+    val headHalfWidth = base * 0.24f
     val isMoving = progressCells > 0f
 
     val cells = if (arrow.path.isNotEmpty()) arrow.path else listOf(arrow.start)
@@ -293,12 +293,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
         val end = points.last()
         val (dx, dy) = fallbackDir
         val tailStart = Offset(
-            x = end.x - dx * (base * 0.34f),
-            y = end.y - dy * (base * 0.34f)
+            x = end.x - dx * (base * 0.42f),
+            y = end.y - dy * (base * 0.42f)
         )
         val shaftEnd = Offset(
-            x = end.x - dx * (headLen * 0.82f),
-            y = end.y - dy * (headLen * 0.82f)
+            x = end.x - dx * (headLen * 0.70f),
+            y = end.y - dy * (headLen * 0.70f)
         )
         drawLine(
             color = color,
@@ -322,7 +322,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
             val mag = kotlin.math.sqrt(vx * vx + vy * vy).coerceAtLeast(0.0001f)
             val ux = vx / mag
             val uy = vy / mag
-            val retreat = min(headLen * 0.82f, mag * 0.45f)
+            val retreat = min(headLen * 0.70f, mag * 0.45f)
             val shaftEnd = Offset(
                 x = tip.x - ux * retreat,
                 y = tip.y - uy * retreat
