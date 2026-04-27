@@ -78,7 +78,7 @@ object LevelRepository {
         }.shuffled(random)
 
         val primary = outwardDirection(start, centerX, centerY)
-        val candidateDirs = listOf(primary) + Direction.entries.filter { it != primary }.shuffled(random)
+        val candidateDirs = (Direction.entries.shuffled(random) + primary).distinct()
         var best = emptyList<Cell>()
         var bestScore = Int.MIN_VALUE
 
@@ -86,7 +86,7 @@ object LevelRepository {
             for (targetLen in targetRange.last downTo targetRange.first) {
                 val turnProfile = turnProfileForLength(targetLen)
                 for (firstDir in candidateDirs) {
-                    repeat(5) {
+                    repeat(9) {
                         val candidate = growPath(
                             start = start,
                             firstDir = firstDir,
@@ -121,7 +121,7 @@ object LevelRepository {
         var best = emptyList<Cell>()
         var bestScore = Int.MIN_VALUE
         for (firstDir in Direction.entries.shuffled(random)) {
-            repeat(4) {
+            repeat(7) {
                 val candidate = growPath(
                     start = start,
                     firstDir = firstDir,
@@ -180,12 +180,14 @@ object LevelRepository {
             val (pickedDir, next) = candidates.minByOrNull { (nextDir, nextCell) ->
                 val isTurn = nextDir != dir
                 val turnBias = when {
-                    turnsUsed < minTurns && isTurn -> -5
-                    turnsUsed < minTurns && !isTurn -> 5
-                    else -> 0
+                    turnsUsed < minTurns && isTurn -> -9
+                    turnsUsed < minTurns && !isTurn -> 10
+                    isTurn -> -3
+                    else -> 2
                 }
                 val openness = freeNeighborCount(nextCell, blocked + local, width, height)
-                turnBias - openness + random.nextInt(0, 2)
+                // Prefer tighter/crowded continuations for more visual tangles.
+                turnBias + (openness * 2) + random.nextInt(0, 5)
             } ?: break
 
             if (pickedDir != dir) turnsUsed++
@@ -200,10 +202,10 @@ object LevelRepository {
     }
 
     private fun turnProfileForLength(length: Int): Pair<Int, Int> = when {
-        length >= 9 -> 3 to 5   // extra long: pronounced zig-zag
-        length >= 7 -> 2 to 4   // long: clear multi-bend shape
-        length >= 4 -> 1 to 3   // mid: at least one visible bend
-        else -> 0 to 1          // short/tiny: mostly simple
+        length >= 9 -> 4 to 7   // extra long: heavy zig-zag
+        length >= 7 -> 3 to 6   // long: multi-bend
+        length >= 4 -> 2 to 4   // mid: visibly bendy
+        else -> 1 to 2          // short/tiny: can still kink
     }
 
     private fun freeNeighborCount(cell: Cell?, blocked: Set<Cell>, width: Int, height: Int): Int {
