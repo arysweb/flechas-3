@@ -1,0 +1,16 @@
+.gradle/
+build/
+app/build/
+.idea/
+local.properties
+*.iml
+
+# Secrets / credentials
+.env
+.env.*
+credentials.json
+*.keystore
+*.jks
+
+# User rule: never commit SQL
+*.sql
