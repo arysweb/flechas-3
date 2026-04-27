@@ -12,5 +12,3 @@ credentials.json
 *.keystore
 *.jks
 
-# User rule: never commit SQL
-*.sql
