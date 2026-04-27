@@ -331,7 +331,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
         scale = 1.0f
         offset = Offset.Zero
         androidx.compose.animation.core.Animatable(1.0f).animateTo(
-            targetValue = 2.2f,
+            targetValue = 1.5f,
             animationSpec = androidx.compose.animation.core.tween(durationMillis = 1500)
         ) {
             scale = this.value
@@ -348,7 +348,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
                 .background(AppBg)
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        val newScale = (scale * zoom).coerceIn(1.0f, 2.2f)
+                        val newScale = (scale * zoom).coerceIn(1.0f, 1.5f)
                         // The box width is screen width minus left and right padding
                         val boxSize = size.width.toFloat() - paddingPx * 2f
                         // By calculating maxOffset from the box size, the visual edge of the scaled 
