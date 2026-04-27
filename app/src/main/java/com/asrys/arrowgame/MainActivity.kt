@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -222,37 +223,39 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
             start = tailStart,
             end = shaftEnd,
             strokeWidth = stroke,
-            cap = StrokeCap.Butt
+            cap = StrokeCap.Round
         )
     }
 
     if (points.size > 1) {
-        for (i in 0 until points.lastIndex) {
-            val rawStart = points[i]
-            val rawEnd = points[i + 1]
-            val isLastSegment = i == points.lastIndex - 1
-            val segEnd = if (isLastSegment) {
-                val vx = rawEnd.x - rawStart.x
-                val vy = rawEnd.y - rawStart.y
-                val mag = kotlin.math.sqrt(vx * vx + vy * vy).coerceAtLeast(0.0001f)
-                val ux = vx / mag
-                val uy = vy / mag
-                val retreat = min(headLen * 0.82f, mag * 0.45f)
-                Offset(
-                    x = rawEnd.x - ux * retreat,
-                    y = rawEnd.y - uy * retreat
-                )
-            } else {
-                rawEnd
+        val bodyPath = Path().apply {
+            moveTo(points.first().x, points.first().y)
+            for (i in 1 until points.lastIndex) {
+                lineTo(points[i].x, points[i].y)
             }
-            drawLine(
-                color = color,
-                start = rawStart,
-                end = segEnd,
-                strokeWidth = stroke,
-                cap = StrokeCap.Butt
+            val beforeHead = points[points.lastIndex - 1]
+            val tip = points.last()
+            val vx = tip.x - beforeHead.x
+            val vy = tip.y - beforeHead.y
+            val mag = kotlin.math.sqrt(vx * vx + vy * vy).coerceAtLeast(0.0001f)
+            val ux = vx / mag
+            val uy = vy / mag
+            val retreat = min(headLen * 0.82f, mag * 0.45f)
+            val shaftEnd = Offset(
+                x = tip.x - ux * retreat,
+                y = tip.y - uy * retreat
             )
+            lineTo(shaftEnd.x, shaftEnd.y)
         }
+        drawPath(
+            path = bodyPath,
+            color = color,
+            style = Stroke(
+                width = stroke,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
     }
 
     val end = points.last()

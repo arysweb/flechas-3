@@ -42,17 +42,14 @@ object LevelRepository {
         for (start in orderedCells) {
             if (start in blocked) continue
             val path = buildPathFromStart(start, width, height, centerX, centerY, blocked, random)
-            if (path.size < 2) continue
+            addArrowIfValid(path, blocked, arrows)
+        }
 
-            reservePathWithPadding(path, blocked)
-            arrows += ArrowPiece(
-                id = arrows.size,
-                start = start,
-                direction = directionAtTip(path),
-                tailFactor = ((path.size - 1).coerceIn(2, 7) - 2) / 5f,
-                bend = bendType(path),
-                path = path
-            )
+        // Second pass: fill remaining tiny gaps with very short arrows.
+        for (start in orderedCells) {
+            if (start in blocked) continue
+            val filler = buildFillerPathFromStart(start, width, height, blocked, random)
+            addArrowIfValid(filler, blocked, arrows)
         }
 
         return arrows
@@ -69,31 +66,37 @@ object LevelRepository {
     ): List<Cell> {
         val distanceNorm = normalizedDistance(start, width, height, centerX, centerY)
         val targetRange = when {
-            distanceNorm < 0.38f -> 5..7
-            distanceNorm < 0.72f -> 3..5
-            else -> 2..3
+            distanceNorm < 0.30f -> 7..10
+            distanceNorm < 0.68f -> 4..7
+            distanceNorm < 0.90f -> 2..4
+            else -> 1..2
         }
 
         val primary = outwardDirection(start, centerX, centerY)
         val candidateDirs = listOf(primary) + Direction.entries.filter { it != primary }.shuffled(random)
-        val bendCandidates = listOf(ArrowBend.STRAIGHT, ArrowBend.LEFT_90, ArrowBend.RIGHT_90).shuffled(random)
         var best = emptyList<Cell>()
+        var bestScore = Int.MIN_VALUE
 
         for (targetLen in targetRange.last downTo targetRange.first) {
+            val turnProfile = turnProfileForLength(targetLen)
             for (firstDir in candidateDirs) {
-                for (bend in bendCandidates) {
-                    val bendStep = if (bend == ArrowBend.STRAIGHT) Int.MAX_VALUE else (targetLen / 2).coerceAtLeast(1)
+                repeat(5) {
                     val candidate = growPath(
                         start = start,
                         firstDir = firstDir,
-                        bend = bend,
-                        bendStep = bendStep,
                         targetLength = targetLen,
                         width = width,
                         height = height,
-                        blocked = blocked
+                        blocked = blocked,
+                        minTurns = turnProfile.first,
+                        maxTurns = turnProfile.second,
+                        random = random
                     )
-                    if (candidate.size > best.size) best = candidate
+                    val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
+                    if (score > bestScore) {
+                        best = candidate
+                        bestScore = score
+                    }
                     if (best.size >= targetLen) return best
                 }
             }
@@ -101,39 +104,112 @@ object LevelRepository {
         return best
     }
 
+    private fun buildFillerPathFromStart(
+        start: Cell,
+        width: Int,
+        height: Int,
+        blocked: Set<Cell>,
+        random: Random
+    ): List<Cell> {
+        var best = emptyList<Cell>()
+        var bestScore = Int.MIN_VALUE
+        for (firstDir in Direction.entries.shuffled(random)) {
+            repeat(4) {
+                val candidate = growPath(
+                    start = start,
+                    firstDir = firstDir,
+                    targetLength = 3,
+                    width = width,
+                    height = height,
+                    blocked = blocked,
+                    minTurns = 1,
+                    maxTurns = 2,
+                    random = random
+                )
+                val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
+                if (score > bestScore) {
+                    best = candidate
+                    bestScore = score
+                }
+            }
+        }
+        return if (best.size >= 2) best else emptyList()
+    }
+
     private fun growPath(
         start: Cell,
         firstDir: Direction,
-        bend: ArrowBend,
-        bendStep: Int,
         targetLength: Int,
         width: Int,
         height: Int,
-        blocked: Set<Cell>
+        blocked: Set<Cell>,
+        minTurns: Int,
+        maxTurns: Int,
+        random: Random
     ): List<Cell> {
         val path = mutableListOf(start)
         val local = mutableSetOf(start)
         var current = start
         var dir = firstDir
+        var turnsUsed = 0
 
         for (step in 1 until targetLength) {
-            if (step == bendStep) {
-                dir = when (bend) {
-                    ArrowBend.STRAIGHT -> dir
-                    ArrowBend.LEFT_90 -> turnLeft(dir)
-                    ArrowBend.RIGHT_90 -> turnRight(dir)
-                }
+            val options = mutableListOf(dir)
+            if (turnsUsed < maxTurns) {
+                options += turnLeft(dir)
+                options += turnRight(dir)
             }
+            val candidates = options.distinct().map { nextDir ->
+                val next = Cell(current.x + nextDir.dx, current.y + nextDir.dy)
+                nextDir to next
+            }.filter { (_, next) ->
+                next.x in 0 until width &&
+                    next.y in 0 until height &&
+                    next !in blocked &&
+                    next !in local
+            }
+            if (candidates.isEmpty()) break
 
-            val next = Cell(current.x + dir.dx, current.y + dir.dy)
-            if (next.x !in 0 until width || next.y !in 0 until height) break
-            if (next in blocked || next in local) break
+            val (pickedDir, next) = candidates.minByOrNull { (nextDir, nextCell) ->
+                val isTurn = nextDir != dir
+                val turnBias = when {
+                    turnsUsed < minTurns && isTurn -> -5
+                    turnsUsed < minTurns && !isTurn -> 5
+                    else -> 0
+                }
+                val openness = freeNeighborCount(nextCell, blocked + local, width, height)
+                turnBias - openness + random.nextInt(0, 2)
+            } ?: break
+
+            if (pickedDir != dir) turnsUsed++
+            dir = pickedDir
+
             path += next
             local += next
             current = next
         }
 
         return path
+    }
+
+    private fun turnProfileForLength(length: Int): Pair<Int, Int> = when {
+        length >= 9 -> 3 to 5   // extra long: pronounced zig-zag
+        length >= 7 -> 2 to 4   // long: clear multi-bend shape
+        length >= 4 -> 1 to 3   // mid: at least one visible bend
+        else -> 0 to 1          // short/tiny: mostly simple
+    }
+
+    private fun freeNeighborCount(cell: Cell?, blocked: Set<Cell>, width: Int, height: Int): Int {
+        if (cell == null) return 0
+        var count = 0
+        for (dir in Direction.entries) {
+            val nx = cell.x + dir.dx
+            val ny = cell.y + dir.dy
+            if (nx in 0 until width && ny in 0 until height && Cell(nx, ny) !in blocked) {
+                count++
+            }
+        }
+        return count
     }
 
     private fun outwardDirection(start: Cell, centerX: Float, centerY: Float): Direction {
@@ -198,6 +274,19 @@ object LevelRepository {
 
     private fun reservePathWithPadding(path: List<Cell>, blocked: MutableSet<Cell>) {
         blocked += path
+    }
+
+    private fun addArrowIfValid(path: List<Cell>, blocked: MutableSet<Cell>, arrows: MutableList<ArrowPiece>) {
+        if (path.size < 2) return
+        reservePathWithPadding(path, blocked)
+        arrows += ArrowPiece(
+            id = arrows.size,
+            start = path.first(),
+            direction = directionAtTip(path),
+            tailFactor = ((path.size - 1).coerceIn(1, 9) - 1) / 8f,
+            bend = bendType(path),
+            path = path
+        )
     }
 
     private fun turnLeft(direction: Direction): Direction = when (direction) {
