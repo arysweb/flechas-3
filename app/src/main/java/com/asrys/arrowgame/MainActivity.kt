@@ -218,7 +218,10 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
     val state by vm.state.collectAsState()
     val level = state.puzzle ?: return
 
-    if (state.isLevelComplete) {
+    var showSuccessScreen by remember(level.id) { mutableStateOf(false) }
+    var waveProgress by remember(level.id) { mutableStateOf(0f) }
+
+    if (showSuccessScreen) {
         SuccessScreen(
             onAnimationEnd = {
                 vm.incrementLevel()
@@ -228,6 +231,36 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
         return
     }
 
+    var scale by remember(level.id) { mutableStateOf(1.0f) }
+    var offset by remember(level.id) { mutableStateOf(Offset.Zero) }
+
+    LaunchedEffect(state.isLevelComplete) {
+        if (state.isLevelComplete) {
+            val startScale = scale
+            val startOffset = offset
+            
+            if (startScale > 1.0f || startOffset != Offset.Zero) {
+                androidx.compose.animation.core.Animatable(0f).animateTo(
+                    targetValue = 1f,
+                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 500)
+                ) {
+                    val t = this.value
+                    scale = startScale + (1.0f - startScale) * t
+                    offset = androidx.compose.ui.geometry.lerp(startOffset, Offset.Zero, t)
+                }
+            }
+
+            androidx.compose.animation.core.Animatable(0f).animateTo(
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000)
+            ) {
+                waveProgress = this.value
+            }
+            delay(100L)
+            showSuccessScreen = true
+        }
+    }
+
     LaunchedEffect(state.isGameOver) {
         if (state.isGameOver) {
             delay(180L)
@@ -235,12 +268,15 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
         }
     }
 
-    var scale by remember { mutableStateOf(2.2f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-
     LaunchedEffect(level.id) {
-        scale = 2.2f
+        scale = 1.0f
         offset = Offset.Zero
+        androidx.compose.animation.core.Animatable(1.0f).animateTo(
+            targetValue = 2.2f,
+            animationSpec = androidx.compose.animation.core.tween(durationMillis = 1500)
+        ) {
+            scale = this.value
+        }
     }
 
     val density = LocalDensity.current
@@ -288,6 +324,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
             ArrowBoard(
                 level = level,
                 state = state,
+                waveProgress = waveProgress,
                 onArrowTap = { id -> vm.onArrowTap(id, scale) }
             )
         }
@@ -298,6 +335,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
 private fun ArrowBoard(
     level: LevelMask,
     state: GameState,
+    waveProgress: Float,
     onArrowTap: (Int) -> Unit
 ) {
     Canvas(
@@ -338,14 +376,33 @@ private fun ArrowBoard(
         }.toSet()
         val clearedCells = (allArrowCells - remainingCells) + movingVacatedCells
 
+        val waveHeight = size.height * 0.3f
+        val waveY = size.height + waveHeight - (size.height + waveHeight * 2) * waveProgress
+
         for (cell in clearedCells) {
+            val cx = cell.x * cw + cw / 2f
+            val cy = cell.y * ch + ch / 2f
+            
+            var currentRadius = dotRadius
+            var currentColor = clearedDotColor
+            
+            if (waveProgress > 0f && waveProgress < 1f) {
+                val dist = kotlin.math.abs(cy - waveY)
+                if (dist < waveHeight) {
+                    val intensity = 1f - (dist / waveHeight)
+                    val smoothIntensity = kotlin.math.sin(intensity * kotlin.math.PI / 2.0).toFloat()
+                    
+                    currentRadius = dotRadius * (1f + 1.5f * smoothIntensity)
+                    val alpha = (0.16f + 0.84f * smoothIntensity).coerceIn(0f, 1f)
+                    val darkBluePulse = Color(0xFF1E3A8A)
+                    currentColor = lerp(clearedDotColor, darkBluePulse, smoothIntensity).copy(alpha = alpha)
+                }
+            }
+
             drawCircle(
-                color = clearedDotColor,
-                radius = dotRadius,
-                center = Offset(
-                    x = cell.x * cw + cw / 2f,
-                    y = cell.y * ch + ch / 2f
-                )
+                color = currentColor,
+                radius = currentRadius,
+                center = Offset(cx, cy)
             )
         }
 
