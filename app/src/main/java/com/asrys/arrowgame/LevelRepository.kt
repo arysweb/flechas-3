@@ -65,39 +65,46 @@ object LevelRepository {
         random: Random
     ): List<Cell> {
         val distanceNorm = normalizedDistance(start, width, height, centerX, centerY)
-        val targetRange = when {
+        val primaryRange = when {
             distanceNorm < 0.30f -> 7..10
             distanceNorm < 0.68f -> 4..7
             distanceNorm < 0.90f -> 2..4
             else -> 1..2
         }
+        val allRanges = listOf(7..10, 4..7, 2..4, 1..2)
+        val rangeOrder = buildList {
+            add(primaryRange)
+            addAll(allRanges.filter { it != primaryRange }.shuffled(random))
+        }.shuffled(random)
 
         val primary = outwardDirection(start, centerX, centerY)
         val candidateDirs = listOf(primary) + Direction.entries.filter { it != primary }.shuffled(random)
         var best = emptyList<Cell>()
         var bestScore = Int.MIN_VALUE
 
-        for (targetLen in targetRange.last downTo targetRange.first) {
-            val turnProfile = turnProfileForLength(targetLen)
-            for (firstDir in candidateDirs) {
-                repeat(5) {
-                    val candidate = growPath(
-                        start = start,
-                        firstDir = firstDir,
-                        targetLength = targetLen,
-                        width = width,
-                        height = height,
-                        blocked = blocked,
-                        minTurns = turnProfile.first,
-                        maxTurns = turnProfile.second,
-                        random = random
-                    )
-                    val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
-                    if (score > bestScore) {
-                        best = candidate
-                        bestScore = score
+        for (targetRange in rangeOrder) {
+            for (targetLen in targetRange.last downTo targetRange.first) {
+                val turnProfile = turnProfileForLength(targetLen)
+                for (firstDir in candidateDirs) {
+                    repeat(5) {
+                        val candidate = growPath(
+                            start = start,
+                            firstDir = firstDir,
+                            targetLength = targetLen,
+                            width = width,
+                            height = height,
+                            blocked = blocked,
+                            minTurns = turnProfile.first,
+                            maxTurns = turnProfile.second,
+                            random = random
+                        )
+                        val score = candidate.size * 100 + freeNeighborCount(candidate.lastOrNull(), blocked, width, height)
+                        if (score > bestScore) {
+                            best = candidate
+                            bestScore = score
+                        }
+                        if (best.size >= targetLen) return best
                     }
-                    if (best.size >= targetLen) return best
                 }
             }
         }
