@@ -30,7 +30,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 seedPool.addAll(response.seeds)
                 Log.d("ArrowGame", "Successfully fetched ${response.seeds.size} seeds from API")
             } catch (e: Exception) {
+                val errorBody = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
                 Log.e("ArrowGame", "Failed to fetch seeds: ${e.message}")
+                if (errorBody != null) Log.e("ArrowGame", "Server Error Body: $errorBody")
                 // Fallback: local generation works fine if offline
             }
         }
@@ -75,7 +77,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 api.submitStats(StatsRequest(seed, timeSeconds.toDouble()))
                 Log.d("ArrowGame", "Successfully submitted stats for seed $seed")
             } catch (e: Exception) {
+                val errorBody = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
                 Log.e("ArrowGame", "Failed to submit stats: ${e.message}")
+                if (errorBody != null) Log.e("ArrowGame", "Server Error Body: $errorBody")
             }
         }
     }

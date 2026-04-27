@@ -93,6 +93,6 @@ function handleSubmitStats($pdo) {
             $pdo->rollBack();
         }
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to save stats']);
+        echo json_encode(['error' => 'Failed to save stats', 'details' => $e->getMessage()]);
     }
 }
