@@ -3,7 +3,7 @@ package com.asrys.arrowgame
 import kotlin.random.Random
 
 object LevelRepository {
-    private const val boardSize = 10
+    private const val boardSize = 20
 
     fun generatePuzzle(puzzleNumber: Int, seed: Int = Random.nextInt()): LevelMask {
         val random = Random(seed)

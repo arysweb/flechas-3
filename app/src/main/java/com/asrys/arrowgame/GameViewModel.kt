@@ -125,9 +125,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val frameMs = 5L
-            var currentSpeed = 4.0f // Initial slow start for fluid liftoff
-            val maxSpeed = 24.0f
-            val acceleration = 45.0f
+            var currentSpeed = 30.0f // Lightning fast start
+            val maxSpeed = 150.0f    // Insanely fast top speed
+            val acceleration = 400.0f // Instant acceleration
             var progress = 0f
             while (progress < maxProgress) {
                 delay(frameMs)

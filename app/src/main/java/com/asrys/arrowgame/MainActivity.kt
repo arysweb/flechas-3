@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,12 +33,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -123,11 +126,35 @@ private fun GameScreen(vm: GameViewModel) {
         }
     }
 
+    var scale by remember { mutableStateOf(2.2f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    LaunchedEffect(level.id) {
+        scale = 2.2f
+        offset = Offset.Zero
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBg)
-            .padding(16.dp),
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    val newScale = (scale * zoom).coerceIn(1.0f, 2.2f)
+                    val boxSize = size.width.toFloat()
+                    val maxOffsetX = (boxSize * newScale - boxSize) / 2f
+                    val maxOffsetY = (boxSize * newScale - boxSize) / 2f
+                    
+                    scale = newScale
+                    val limitX = maxOf(0f, maxOffsetX)
+                    val limitY = maxOf(0f, maxOffsetY)
+                    
+                    offset = Offset(
+                        x = (offset.x + pan.x).coerceIn(-limitX, limitX),
+                        y = (offset.y + pan.y).coerceIn(-limitY, limitY)
+                    )
+                }
+            },
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -135,7 +162,12 @@ private fun GameScreen(vm: GameViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .padding(14.dp)
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y
+                )
         ) {
             ArrowBoard(
                 level = level,
