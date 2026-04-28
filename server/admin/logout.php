@@ -11,5 +11,5 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !validateCsrf($_POST['csrf_token'] 
 
 session_unset();
 session_destroy();
-header('Location: /server/admin/login.php');
+header('Location: ' . adminUrl('login.php'));
 exit;

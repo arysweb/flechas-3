@@ -58,7 +58,7 @@ $topDevices = $topDevicesStmt ? $topDevicesStmt->fetchAll() : [];
             <h1>Arrow Game Stats</h1>
             <div class="small">Signed in as <?= htmlspecialchars((string)$_SESSION['admin_email'], ENT_QUOTES, 'UTF-8') ?></div>
         </div>
-        <form method="post" action="/server/admin/logout.php">
+        <form method="post" action="<?= htmlspecialchars(adminUrl('logout.php'), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <button class="btn" type="submit">Logout</button>
         </form>

@@ -130,6 +130,30 @@ function validateCsrf(?string $token): bool
     return $current !== '' && $token !== null && hash_equals($current, $token);
 }
 
+function adminBasePath(): string
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    $pos = strpos($path, '/admin');
+    if ($pos !== false) {
+        $cached = rtrim(substr($path, 0, $pos + 6), '/');
+    } else {
+        $cached = '/admin';
+    }
+    return $cached;
+}
+
+function adminUrl(string $suffix = ''): string
+{
+    $base = adminBasePath();
+    $suffix = ltrim($suffix, '/');
+    return $suffix === '' ? $base : $base . '/' . $suffix;
+}
+
 function requireAdmin(): void
 {
     $ok = !empty($_SESSION['admin_auth'])
@@ -140,7 +164,7 @@ function requireAdmin(): void
     if (!$ok || !hash_equals((string)$_SESSION['admin_ua_hash'], $uaHash)) {
         session_unset();
         session_destroy();
-        header('Location: /server/admin/login.php');
+        header('Location: ' . adminUrl('login.php'));
         exit;
     }
 }

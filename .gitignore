@@ -11,4 +11,5 @@ local.properties
 credentials.json
 *.keystore
 *.jks
+server/db.local.php
 
