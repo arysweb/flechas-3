@@ -82,15 +82,14 @@ function recordAttempt(PDO $pdo, string $email, bool $success, bool $honeypotHit
 {
     $stmt = $pdo->prepare("
         INSERT INTO admin_login_attempts (email, ip, user_agent, success, honeypot_hit)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (:email, :ip, :ua, :success, :honeypot)
     ");
-    $stmt->execute([
-        mb_strtolower(trim($email)),
-        clientIp(),
-        substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 400),
-        $success,
-        $honeypotHit,
-    ]);
+    $stmt->bindValue(':email', mb_strtolower(trim($email)), PDO::PARAM_STR);
+    $stmt->bindValue(':ip', clientIp(), PDO::PARAM_STR);
+    $stmt->bindValue(':ua', substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 400), PDO::PARAM_STR);
+    $stmt->bindValue(':success', $success, PDO::PARAM_BOOL);
+    $stmt->bindValue(':honeypot', $honeypotHit, PDO::PARAM_BOOL);
+    $stmt->execute();
 }
 
 function isRateLimited(PDO $pdo, string $email): bool
