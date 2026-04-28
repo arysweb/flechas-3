@@ -1,6 +1,7 @@
 package com.asrys.arrowgame
 
 import android.app.Application
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,9 +73,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun submitStats(timeSeconds: Int) {
         val seed = _state.value.currentSeed ?: return
+        val deviceId = Settings.Secure.getString(
+            getApplication<Application>().contentResolver,
+            Settings.Secure.ANDROID_ID
+        )
         viewModelScope.launch {
             try {
-                api.submitStats(StatsRequest(seed, timeSeconds.toDouble()))
+                api.submitStats(StatsRequest(seed, timeSeconds.toDouble(), deviceId))
                 Log.d("ArrowGame", "Successfully submitted stats for seed $seed")
             } catch (e: Exception) {
                 val errorBody = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()

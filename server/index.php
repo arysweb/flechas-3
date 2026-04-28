@@ -61,6 +61,18 @@ function handleSubmitStats($pdo) {
     $data = json_decode(file_get_contents('php://input'), true);
     $seed = isset($data['seed']) ? (int)$data['seed'] : null;
     $time = isset($data['time']) ? (float)$data['time'] : null;
+    $deviceId = null;
+
+    // Accept both snake_case and camelCase to stay backwards compatible.
+    if (isset($data['device_id'])) {
+        $deviceId = trim((string)$data['device_id']);
+    } elseif (isset($data['deviceId'])) {
+        $deviceId = trim((string)$data['deviceId']);
+    }
+
+    if ($deviceId === '') {
+        $deviceId = null;
+    }
 
     if ($seed === null || $time === null) {
         http_response_code(400);
@@ -87,8 +99,8 @@ function handleSubmitStats($pdo) {
         $stmt->execute([$time, $seed]);
 
         // 3. Log the play (optional but good for future analytics)
-        $stmt = $pdo->prepare("INSERT INTO play_logs (seed, completion_time) VALUES (?, ?)");
-        $stmt->execute([$seed, $time]);
+        $stmt = $pdo->prepare("INSERT INTO play_logs (seed, completion_time, device_id) VALUES (?, ?, ?)");
+        $stmt->execute([$seed, $time, $deviceId]);
 
         $pdo->commit();
         echo json_encode(['success' => true]);

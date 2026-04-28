@@ -8,7 +8,7 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 data class PuzzleSeedsResponse(val seeds: List<Int>)
-data class StatsRequest(val seed: Int, val time: Double)
+data class StatsRequest(val seed: Int, val time: Double, val device_id: String?)
 data class SuccessResponse(val success: Boolean)
 
 interface GameApi {
