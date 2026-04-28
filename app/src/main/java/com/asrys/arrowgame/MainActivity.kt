@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -52,7 +55,12 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.googlefonts.GoogleFont.Provider
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,6 +69,35 @@ import kotlinx.coroutines.delay
 import kotlin.math.min
 
 private val AppBg = Color(0xFF050A1F)
+private val googleFontProvider = Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs
+)
+private val bricolageGrotesque = GoogleFont("Bricolage Grotesque")
+private val appFontFamily = FontFamily(
+    Font(googleFont = bricolageGrotesque, fontProvider = googleFontProvider, weight = FontWeight.Light),
+    Font(googleFont = bricolageGrotesque, fontProvider = googleFontProvider, weight = FontWeight.ExtraBold)
+)
+private val appTypography = Typography().run {
+    copy(
+        displayLarge = displayLarge.copy(fontFamily = appFontFamily),
+        displayMedium = displayMedium.copy(fontFamily = appFontFamily),
+        displaySmall = displaySmall.copy(fontFamily = appFontFamily),
+        headlineLarge = headlineLarge.copy(fontFamily = appFontFamily),
+        headlineMedium = headlineMedium.copy(fontFamily = appFontFamily),
+        headlineSmall = headlineSmall.copy(fontFamily = appFontFamily),
+        titleLarge = titleLarge.copy(fontFamily = appFontFamily),
+        titleMedium = titleMedium.copy(fontFamily = appFontFamily),
+        titleSmall = titleSmall.copy(fontFamily = appFontFamily),
+        bodyLarge = bodyLarge.copy(fontFamily = appFontFamily),
+        bodyMedium = bodyMedium.copy(fontFamily = appFontFamily),
+        bodySmall = bodySmall.copy(fontFamily = appFontFamily),
+        labelLarge = labelLarge.copy(fontFamily = appFontFamily),
+        labelMedium = labelMedium.copy(fontFamily = appFontFamily),
+        labelSmall = labelSmall.copy(fontFamily = appFontFamily)
+    )
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,7 +108,8 @@ class MainActivity : ComponentActivity() {
                 colorScheme = darkColorScheme(
                     background = AppBg,
                     surface = AppBg
-                )
+                ),
+                typography = appTypography
             ) {
                 AppRoot()
             }
@@ -118,11 +156,10 @@ private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = stringResource(R.string.menu_title),
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 42.sp
+            Image(
+                painter = painterResource(id = R.drawable.arrows_logo),
+                contentDescription = stringResource(R.string.menu_title),
+                modifier = Modifier.fillMaxWidth(0.78f)
             )
             val levelText = stringResource(R.string.level_label, levelNumber)
             val parts = levelText.split(levelNumber.toString())
@@ -137,7 +174,7 @@ private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
                     Text(
                         text = prefix,
                         color = Color.LightGray,
-                        fontSize = 24.sp
+                        fontSize = 18.sp
                     )
                 }
                 AnimatedContent(
@@ -151,14 +188,14 @@ private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
                     Text(
                         text = targetLevel.toString(),
                         color = Color.LightGray,
-                        fontSize = 24.sp
+                        fontSize = 18.sp
                     )
                 }
                 if (suffix.isNotEmpty()) {
                     Text(
                         text = suffix,
                         color = Color.LightGray,
-                        fontSize = 24.sp
+                        fontSize = 18.sp
                     )
                 }
             }
@@ -448,16 +485,62 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 64.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.Center
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                repeat(3) { index ->
-                    val isAlive = index < state.lives
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = null,
-                        tint = if (isAlive) Color.Red else Color.Gray.copy(alpha = 0.5f),
-                        modifier = Modifier.size(40.dp).padding(horizontal = 4.dp)
-                    )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .background(
+                                color = Color(0xFF1E2A52),
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "${state.remaining.size}",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        repeat(3) { index ->
+                            val isAlive = index < state.lives
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = if (isAlive) Color.Red else Color.Gray.copy(alpha = 0.5f),
+                                modifier = Modifier.size(40.dp).padding(horizontal = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    // Reserved for future HUD content.
                 }
             }
 
@@ -468,7 +551,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
-
+            
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center,
