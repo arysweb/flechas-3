@@ -11,6 +11,38 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
 $method = $_SERVER['REQUEST_METHOD'];
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+
+// If Railway routes everything to this file, manually pass admin URLs through.
+$normalizedPath = ltrim($requestPath, '/');
+if (str_starts_with($normalizedPath, 'server/')) {
+    $normalizedPath = substr($normalizedPath, 7);
+}
+
+if (str_starts_with($normalizedPath, 'admin')) {
+    $adminRelative = substr($normalizedPath, strlen('admin'));
+    $adminRelative = ltrim($adminRelative, '/');
+    $target = $adminRelative === '' ? 'index.php' : $adminRelative;
+
+    // Prevent traversal and only allow php files inside /server/admin.
+    if (str_contains($target, '..')) {
+        http_response_code(400);
+        header('Content-Type: text/plain');
+        echo 'Bad request';
+        exit;
+    }
+
+    $targetPath = __DIR__ . '/admin/' . $target;
+    if (!str_ends_with($targetPath, '.php') || !is_file($targetPath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain');
+        echo 'Not found';
+        exit;
+    }
+
+    require $targetPath;
+    exit;
+}
 
 // Handle preflight requests
 if ($method === 'OPTIONS') {
