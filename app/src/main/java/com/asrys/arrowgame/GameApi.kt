@@ -9,6 +9,13 @@ import retrofit2.http.Query
 
 data class PuzzleSeedsResponse(val seeds: List<Int>)
 data class StatsRequest(val seed: Int, val time: Double, val device_id: String?)
+data class SaveProgressRequest(val device_id: String, val puzzle_number: Int)
+data class ProgressResponse(
+    val device_id: String,
+    val current_puzzle_number: Int,
+    val max_puzzle_number: Int,
+    val found: Boolean
+)
 data class SuccessResponse(val success: Boolean)
 
 interface GameApi {
@@ -17,6 +24,12 @@ interface GameApi {
 
     @POST("index.php?action=submit_stats")
     suspend fun submitStats(@Body stats: StatsRequest): SuccessResponse
+
+    @GET("index.php?action=get_progress")
+    suspend fun getProgress(@Query("device_id") deviceId: String): ProgressResponse
+
+    @POST("index.php?action=save_progress")
+    suspend fun saveProgress(@Body payload: SaveProgressRequest): SuccessResponse
 
     companion object {
         // IMPORTANT: Replace this with your actual Railway URL!

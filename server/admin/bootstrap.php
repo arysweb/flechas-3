@@ -10,10 +10,21 @@ header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-in
 
 date_default_timezone_set('UTC');
 
+function detectAdminCookiePath(): string
+{
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    $pos = strpos($path, '/admin');
+    if ($pos !== false) {
+        $base = rtrim(substr($path, 0, $pos + 6), '/');
+        return $base === '' ? '/admin' : $base;
+    }
+    return '/admin';
+}
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_set_cookie_params([
         'lifetime' => 0,
-        'path' => '/server/admin',
+        'path' => detectAdminCookiePath(),
         'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
         'httponly' => true,
         'samesite' => 'Strict',

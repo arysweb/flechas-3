@@ -58,16 +58,45 @@ switch ($action) {
     case 'submit_stats':
         handleSubmitStats($pdo);
         break;
+    case 'get_progress':
+        handleGetProgress($pdo);
+        break;
+    case 'save_progress':
+        handleSaveProgress($pdo);
+        break;
     default:
         echo json_encode([
             'status' => 'online', 
             'message' => 'Arrow Game API',
             'endpoints' => [
                 'get_puzzles' => '?action=get_puzzles&count=10',
-                'submit_stats' => '?action=submit_stats'
+                'submit_stats' => '?action=submit_stats',
+                'get_progress' => '?action=get_progress&device_id=DEVICE_ID',
+                'save_progress' => '?action=save_progress'
             ]
         ]);
         break;
+}
+
+function ensureDeviceProgressColumns(PDO $pdo): void {
+    $pdo->exec("ALTER TABLE devices ADD COLUMN IF NOT EXISTS max_puzzle_number INT NOT NULL DEFAULT 1");
+    $pdo->exec("ALTER TABLE devices ADD COLUMN IF NOT EXISTS current_puzzle_number INT NOT NULL DEFAULT 1");
+}
+
+function normalizeDeviceId(array $data, string $queryKey = 'device_id'): ?string {
+    $deviceId = null;
+
+    if (isset($data[$queryKey])) {
+        $deviceId = trim((string)$data[$queryKey]);
+    } elseif (isset($data['deviceId'])) {
+        $deviceId = trim((string)$data['deviceId']);
+    }
+
+    if ($deviceId === '') {
+        return null;
+    }
+
+    return $deviceId;
 }
 
 function handleGetPuzzles($pdo) {
@@ -93,18 +122,7 @@ function handleSubmitStats($pdo) {
     $data = json_decode(file_get_contents('php://input'), true);
     $seed = isset($data['seed']) ? (int)$data['seed'] : null;
     $time = isset($data['time']) ? (float)$data['time'] : null;
-    $deviceId = null;
-
-    // Accept both snake_case and camelCase to stay backwards compatible.
-    if (isset($data['device_id'])) {
-        $deviceId = trim((string)$data['device_id']);
-    } elseif (isset($data['deviceId'])) {
-        $deviceId = trim((string)$data['deviceId']);
-    }
-
-    if ($deviceId === '') {
-        $deviceId = null;
-    }
+    $deviceId = normalizeDeviceId($data);
 
     if ($seed === null || $time === null) {
         http_response_code(400);
@@ -136,9 +154,18 @@ function handleSubmitStats($pdo) {
 
         // 4. Maintain per-device aggregated stats for fast reads.
         if ($deviceId !== null) {
+            ensureDeviceProgressColumns($pdo);
             $stmt = $pdo->prepare("
-                INSERT INTO devices (device_id, puzzles_played, total_play_time_seconds, last_seen_at, updated_at)
-                VALUES (?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO devices (
+                    device_id,
+                    puzzles_played,
+                    total_play_time_seconds,
+                    max_puzzle_number,
+                    current_puzzle_number,
+                    last_seen_at,
+                    updated_at
+                )
+                VALUES (?, 1, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (device_id)
                 DO UPDATE SET
                     puzzles_played = devices.puzzles_played + 1,
@@ -157,5 +184,90 @@ function handleSubmitStats($pdo) {
         }
         http_response_code(500);
         echo json_encode(['error' => 'Failed to save stats', 'details' => $e->getMessage()]);
+    }
+}
+
+function handleGetProgress(PDO $pdo): void {
+    $deviceId = normalizeDeviceId($_GET);
+    if ($deviceId === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid data. Required: device_id (string)']);
+        return;
+    }
+
+    try {
+        ensureDeviceProgressColumns($pdo);
+        $stmt = $pdo->prepare("
+            SELECT current_puzzle_number, max_puzzle_number
+            FROM devices
+            WHERE device_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$deviceId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            echo json_encode([
+                'device_id' => $deviceId,
+                'current_puzzle_number' => 1,
+                'max_puzzle_number' => 1,
+                'found' => false
+            ]);
+            return;
+        }
+
+        echo json_encode([
+            'device_id' => $deviceId,
+            'current_puzzle_number' => max(1, (int)$row['current_puzzle_number']),
+            'max_puzzle_number' => max(1, (int)$row['max_puzzle_number']),
+            'found' => true
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to load progress', 'details' => $e->getMessage()]);
+    }
+}
+
+function handleSaveProgress(PDO $pdo): void {
+    $data = json_decode(file_get_contents('php://input'), true) ?? [];
+    $deviceId = normalizeDeviceId($data);
+    $puzzleNumber = isset($data['puzzle_number']) ? (int)$data['puzzle_number'] : null;
+
+    if ($deviceId === null || $puzzleNumber === null || $puzzleNumber < 1) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid data. Required: device_id (string), puzzle_number (int >= 1)']);
+        return;
+    }
+
+    try {
+        ensureDeviceProgressColumns($pdo);
+        $stmt = $pdo->prepare("
+            INSERT INTO devices (
+                device_id,
+                puzzles_played,
+                total_play_time_seconds,
+                max_puzzle_number,
+                current_puzzle_number,
+                last_seen_at,
+                updated_at
+            )
+            VALUES (?, 0, 0, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (device_id)
+            DO UPDATE SET
+                max_puzzle_number = GREATEST(devices.max_puzzle_number, EXCLUDED.max_puzzle_number),
+                current_puzzle_number = GREATEST(devices.current_puzzle_number, EXCLUDED.current_puzzle_number),
+                last_seen_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+        ");
+        $stmt->execute([$deviceId, $puzzleNumber, $puzzleNumber]);
+
+        echo json_encode([
+            'success' => true,
+            'device_id' => $deviceId,
+            'puzzle_number' => $puzzleNumber
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to save progress', 'details' => $e->getMessage()]);
     }
 }

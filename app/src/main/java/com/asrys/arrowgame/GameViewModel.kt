@@ -14,14 +14,20 @@ import kotlinx.coroutines.launch
 class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val api = GameApi.create()
     private val seedPool = mutableListOf<Int>()
+    private val deviceId: String by lazy {
+        Settings.Secure.getString(
+            getApplication<Application>().contentResolver,
+            Settings.Secure.ANDROID_ID
+        ) ?: ""
+    }
 
     private val _state = MutableStateFlow(GameState())
     val state: StateFlow<GameState> = _state
 
     init {
-        // Start by fetching seeds and initializing the first puzzle
+        // Fetch seeds and load remote progression before creating the first puzzle.
         fetchSeeds()
-        startRandomPuzzle()
+        restoreProgressAndStart()
     }
 
     private fun fetchSeeds() {
@@ -73,10 +79,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun submitStats(timeSeconds: Int) {
         val seed = _state.value.currentSeed ?: return
-        val deviceId = Settings.Secure.getString(
-            getApplication<Application>().contentResolver,
-            Settings.Secure.ANDROID_ID
-        )
         viewModelScope.launch {
             try {
                 api.submitStats(StatsRequest(seed, timeSeconds.toDouble(), deviceId))
@@ -107,6 +109,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 isLevelComplete = false
             )
         }
+        persistProgress(nextNumber)
     }
 
     fun startRandomPuzzle() {
@@ -124,6 +127,41 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 isGameOver = false,
                 isLevelComplete = false
             )
+        }
+    }
+
+    private fun restoreProgressAndStart() {
+        viewModelScope.launch {
+            val remotePuzzleNumber = loadRemotePuzzleNumber()
+            _state.update { it.copy(puzzleNumber = remotePuzzleNumber) }
+            startRandomPuzzle()
+        }
+    }
+
+    private suspend fun loadRemotePuzzleNumber(): Int {
+        if (deviceId.isBlank()) return 1
+        return try {
+            val response = api.getProgress(deviceId)
+            maxOf(1, response.current_puzzle_number, response.max_puzzle_number)
+        } catch (e: Exception) {
+            val errorBody = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
+            Log.e("ArrowGame", "Failed to load progress: ${e.message}")
+            if (errorBody != null) Log.e("ArrowGame", "Server Error Body: $errorBody")
+            1
+        }
+    }
+
+    private fun persistProgress(puzzleNumber: Int) {
+        if (deviceId.isBlank()) return
+        viewModelScope.launch {
+            try {
+                api.saveProgress(SaveProgressRequest(deviceId, puzzleNumber))
+                Log.d("ArrowGame", "Saved progress at puzzle $puzzleNumber")
+            } catch (e: Exception) {
+                val errorBody = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
+                Log.e("ArrowGame", "Failed to save progress: ${e.message}")
+                if (errorBody != null) Log.e("ArrowGame", "Server Error Body: $errorBody")
+            }
         }
     }
 

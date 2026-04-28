@@ -91,7 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input id="password" type="password" name="password" required>
         <button type="submit">Sign in</button>
     </form>
-    <p class="note">Protected area. Unauthorized access is prohibited.</p>
 </div>
 </body>
 </html>
