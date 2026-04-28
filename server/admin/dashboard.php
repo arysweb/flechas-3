@@ -2,22 +2,77 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/topbar.php';
 requireAdmin();
 
-$totals = $pdo->query("
-    SELECT
-        COUNT(*)::INT AS total_plays,
-        COALESCE(AVG(completion_time), 0)::FLOAT AS avg_time,
-        COALESCE(SUM(completion_time), 0)::FLOAT AS total_time
-    FROM play_logs
-")->fetch() ?: ['total_plays' => 0, 'avg_time' => 0, 'total_time' => 0];
+function trendMeta(float $current, float $previous): array
+{
+    $delta = $current - $previous;
+    if (abs($delta) < 0.00001) {
+        return [
+            'class' => 'trend-neutral',
+            'icon' => 'trending_flat',
+            'value' => '0.0%',
+        ];
+    }
 
-$devices = $pdo->query("
+    $positive = $delta > 0;
+    $pct = $previous > 0 ? (abs($delta) / $previous) * 100 : 100;
+
+    return [
+        'class' => $positive ? 'trend-positive' : 'trend-negative',
+        'icon' => $positive ? 'trending_up' : 'trending_down',
+        'value' => sprintf('%s%s', $positive ? '+' : '-', number_format($pct, 1) . '%'),
+    ];
+}
+
+$range = (string)($_GET['range'] ?? '24h');
+$allowedRanges = [
+    '24h' => "24 hours",
+    '7d' => "7 days",
+    '30d' => "30 days",
+];
+if (!isset($allowedRanges[$range])) {
+    $range = '24h';
+}
+$interval = $allowedRanges[$range];
+
+$metricsStmt = $pdo->prepare("
+    WITH current_period AS (
+        SELECT completion_time, device_id
+        FROM play_logs
+        WHERE played_at >= (CURRENT_TIMESTAMP - CAST(:range_interval AS INTERVAL))
+    ),
+    previous_period AS (
+        SELECT completion_time, device_id
+        FROM play_logs
+        WHERE played_at >= (CURRENT_TIMESTAMP - (CAST(:range_interval AS INTERVAL) * 2))
+          AND played_at < (CURRENT_TIMESTAMP - CAST(:range_interval AS INTERVAL))
+    )
     SELECT
-        COUNT(*)::INT AS total_devices,
-        COALESCE(SUM(puzzles_played), 0)::INT AS puzzles_played_sum
-    FROM devices
-")->fetch() ?: ['total_devices' => 0, 'puzzles_played_sum' => 0];
+        (SELECT COUNT(*)::INT FROM current_period) AS total_plays,
+        (SELECT COALESCE(AVG(completion_time), 0)::FLOAT FROM current_period) AS avg_time,
+        (SELECT COALESCE(SUM(completion_time), 0)::FLOAT FROM current_period) AS total_time,
+        (SELECT COUNT(DISTINCT device_id)::INT FROM current_period) AS total_devices,
+        (SELECT COUNT(*)::INT FROM previous_period) AS prev_total_plays,
+        (SELECT COALESCE(AVG(completion_time), 0)::FLOAT FROM previous_period) AS prev_avg_time,
+        (SELECT COALESCE(SUM(completion_time), 0)::FLOAT FROM previous_period) AS prev_total_time,
+        (SELECT COUNT(DISTINCT device_id)::INT FROM previous_period) AS prev_total_devices
+");
+$metricsStmt->bindValue(':range_interval', $interval, PDO::PARAM_STR);
+$metricsStmt->execute();
+$metrics = $metricsStmt->fetch() ?: [];
+$puzzleCountRow = $pdo->query("SELECT COUNT(*)::INT AS total_puzzles FROM puzzles")->fetch() ?: ['total_puzzles' => 0];
+
+$totalPuzzles = (int)($puzzleCountRow['total_puzzles'] ?? 0);
+$totalPlays = (int)($metrics['total_plays'] ?? 0);
+$avgTime = (float)($metrics['avg_time'] ?? 0);
+$totalTime = (float)($metrics['total_time'] ?? 0);
+$totalDevices = (int)($metrics['total_devices'] ?? 0);
+
+$playsTrend = trendMeta((float)$totalPlays, (float)($metrics['prev_total_plays'] ?? 0));
+$avgTimeTrend = trendMeta($avgTime, (float)($metrics['prev_avg_time'] ?? 0));
+$devicesTrend = trendMeta((float)$totalDevices, (float)($metrics['prev_total_devices'] ?? 0));
 
 $topDevicesStmt = $pdo->query("
     SELECT device_id, puzzles_played, total_play_time_seconds, last_seen_at
@@ -33,53 +88,82 @@ $topDevices = $topDevicesStmt ? $topDevicesStmt->fetchAll() : [];
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Arrow Game Admin Dashboard</title>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0b1020; color: #fff; }
-        .container { max-width: 1100px; margin: 26px auto; padding: 0 16px; }
-        .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-        .card { background: #111a33; border-radius: 12px; padding: 16px; }
-        .label { color: #93c5fd; font-size: 13px; margin-bottom: 6px; }
-        .value { font-size: 26px; font-weight: 700; }
-        .panel { background: #111a33; border-radius: 12px; overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #253454; }
-        th { color: #bfdbfe; font-size: 13px; }
-        .btn { background: #1d4ed8; color: #fff; border: 0; padding: 10px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; }
-        .small { color: #93a5c6; font-size: 12px; }
-        @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
-    </style>
+    <link rel="stylesheet" href="<?= htmlspecialchars(adminUrl('admin.css'), ENT_QUOTES, 'UTF-8') ?>">
 </head>
 <body>
 <div class="container">
-    <div class="top">
-        <div>
-            <h1>Arrow Game Stats</h1>
-            <div class="small">Signed in as <?= htmlspecialchars((string)$_SESSION['admin_email'], ENT_QUOTES, 'UTF-8') ?></div>
+    <?php renderAdminTopbar(true, true); ?>
+
+    <div class="filters-row">
+        <div class="time-filter" role="group" aria-label="Time filter">
+            <a class="filter-btn <?= $range === '24h' ? 'is-active' : '' ?>" href="<?= htmlspecialchars(adminUrl('dashboard.php?range=24h'), ENT_QUOTES, 'UTF-8') ?>">24 hours</a>
+            <a class="filter-btn <?= $range === '7d' ? 'is-active' : '' ?>" href="<?= htmlspecialchars(adminUrl('dashboard.php?range=7d'), ENT_QUOTES, 'UTF-8') ?>">7 days</a>
+            <a class="filter-btn <?= $range === '30d' ? 'is-active' : '' ?>" href="<?= htmlspecialchars(adminUrl('dashboard.php?range=30d'), ENT_QUOTES, 'UTF-8') ?>">30 days</a>
         </div>
-        <form method="post" action="<?= htmlspecialchars(adminUrl('logout.php'), ENT_QUOTES, 'UTF-8') ?>">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-            <button class="btn" type="submit">Logout</button>
-        </form>
     </div>
 
-    <div class="cards">
-        <div class="card">
-            <div class="label">Total Plays</div>
-            <div class="value"><?= (int)$totals['total_plays'] ?></div>
+    <div class="cards cards-primary">
+        <div class="card card-plays">
+            <div class="metric-head">
+                <span class="material-symbols-outlined metric-icon" aria-hidden="true">sports_esports</span>
+                <div class="label">Total Plays</div>
+            </div>
+            <div class="value"><?= $totalPlays ?></div>
+            <div class="trend-row">
+                <span class="trend-value <?= htmlspecialchars($playsTrend['class'], ENT_QUOTES, 'UTF-8') ?>">
+                    <span class="material-symbols-outlined trend-icon" aria-hidden="true"><?= htmlspecialchars($playsTrend['icon'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span><?= htmlspecialchars($playsTrend['value'], ENT_QUOTES, 'UTF-8') ?></span>
+                </span>
+                <span class="trend-label">vs previous period</span>
+            </div>
         </div>
-        <div class="card">
-            <div class="label">Average Completion Time (s)</div>
-            <div class="value"><?= number_format((float)$totals['avg_time'], 2) ?></div>
+        <div class="card card-devices">
+            <div class="metric-head">
+                <span class="material-symbols-outlined metric-icon" aria-hidden="true">devices</span>
+                <div class="label">Total Devices</div>
+            </div>
+            <div class="value"><?= $totalDevices ?></div>
+            <div class="trend-row">
+                <span class="trend-value <?= htmlspecialchars($devicesTrend['class'], ENT_QUOTES, 'UTF-8') ?>">
+                    <span class="material-symbols-outlined trend-icon" aria-hidden="true"><?= htmlspecialchars($devicesTrend['icon'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span><?= htmlspecialchars($devicesTrend['value'], ENT_QUOTES, 'UTF-8') ?></span>
+                </span>
+                <span class="trend-label">vs previous period</span>
+            </div>
         </div>
-        <div class="card">
-            <div class="label">Unique Devices</div>
-            <div class="value"><?= (int)$devices['total_devices'] ?></div>
+    </div>
+
+    <div class="cards cards-secondary">
+        <div class="card card-puzzles">
+            <div class="metric-head">
+                <span class="material-symbols-outlined metric-icon" aria-hidden="true">extension</span>
+                <div class="label">Nr. Puzzles</div>
+            </div>
+            <div class="value"><?= $totalPuzzles ?></div>
         </div>
-        <div class="card">
-            <div class="label">Total Play Time (s)</div>
-            <div class="value"><?= number_format((float)$totals['total_time'], 0) ?></div>
+        <div class="card card-total-time">
+            <div class="metric-head">
+                <span class="material-symbols-outlined metric-icon" aria-hidden="true">schedule</span>
+                <div class="label">Total Play Time (s)</div>
+            </div>
+            <div class="value"><?= number_format($totalTime, 0) ?></div>
+        </div>
+    </div>
+
+    <div class="cards cards-tertiary">
+        <div class="card card-avg-time">
+            <div class="metric-head">
+                <span class="material-symbols-outlined metric-icon" aria-hidden="true">timer</span>
+                <div class="label">Average Completion Time (s)</div>
+            </div>
+            <div class="value"><?= number_format($avgTime, 2) ?></div>
+            <div class="trend-row">
+                <span class="trend-value <?= htmlspecialchars($avgTimeTrend['class'], ENT_QUOTES, 'UTF-8') ?>">
+                    <span class="material-symbols-outlined trend-icon" aria-hidden="true"><?= htmlspecialchars($avgTimeTrend['icon'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span><?= htmlspecialchars($avgTimeTrend['value'], ENT_QUOTES, 'UTF-8') ?></span>
+                </span>
+                <span class="trend-label">vs previous period</span>
+            </div>
         </div>
     </div>
 
