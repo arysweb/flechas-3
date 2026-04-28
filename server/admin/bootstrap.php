@@ -52,6 +52,18 @@ function syncEnvAdmin(PDO $pdo): void
     $adminEmail = trim((string)(getenv('ADMIN_EMAIL') ?: ''));
     $adminHash = trim((string)(getenv('ADMIN_PASSWORD_HASH') ?: ''));
 
+    // Localhost fallback without env vars: read from server/admin/admin.local.php
+    if (($adminEmail === '' || $adminHash === '') && isLocalRequest()) {
+        $localAdminFile = __DIR__ . '/admin.local.php';
+        if (is_file($localAdminFile)) {
+            $localAdmin = require $localAdminFile;
+            if (is_array($localAdmin)) {
+                $adminEmail = trim((string)($localAdmin['email'] ?? $adminEmail));
+                $adminHash = trim((string)($localAdmin['password_hash'] ?? $adminHash));
+            }
+        }
+    }
+
     if ($adminEmail === '' || $adminHash === '') {
         return;
     }
