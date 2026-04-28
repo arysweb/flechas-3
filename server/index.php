@@ -98,9 +98,24 @@ function handleSubmitStats($pdo) {
         ");
         $stmt->execute([$time, $seed]);
 
-        // 3. Log the play (optional but good for future analytics)
+        // 3. Log each play for raw analytics/history.
         $stmt = $pdo->prepare("INSERT INTO play_logs (seed, completion_time, device_id) VALUES (?, ?, ?)");
         $stmt->execute([$seed, $time, $deviceId]);
+
+        // 4. Maintain per-device aggregated stats for fast reads.
+        if ($deviceId !== null) {
+            $stmt = $pdo->prepare("
+                INSERT INTO devices (device_id, puzzles_played, total_play_time_seconds, last_seen_at, updated_at)
+                VALUES (?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (device_id)
+                DO UPDATE SET
+                    puzzles_played = devices.puzzles_played + 1,
+                    total_play_time_seconds = devices.total_play_time_seconds + EXCLUDED.total_play_time_seconds,
+                    last_seen_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+            ");
+            $stmt->execute([$deviceId, $time]);
+        }
 
         $pdo->commit();
         echo json_encode(['success' => true]);
