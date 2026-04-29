@@ -7,6 +7,7 @@ require_once 'db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$action = $_GET['action'] ?? '';
 
 // If Railway routes everything to this file, manually pass admin URLs through.
 $normalizedPath = ltrim($requestPath, '/');
@@ -39,7 +40,9 @@ if (str_starts_with($normalizedPath, 'admin')) {
     exit;
 }
 
-header('Content-Type: application/json');
+if ($action !== 'download_schema_dump') {
+    header('Content-Type: application/json');
+}
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
@@ -48,8 +51,6 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization');
 if ($method === 'OPTIONS') {
     exit;
 }
-
-$action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'get_puzzles':
@@ -70,6 +71,9 @@ switch ($action) {
     case 'save_progress':
         handleSaveProgress($pdo);
         break;
+    case 'download_schema_dump':
+        handleDownloadSchemaDump($pdo);
+        break;
     default:
         echo json_encode([
             'status' => 'online', 
@@ -78,7 +82,8 @@ switch ($action) {
                 'get_puzzles' => '?action=get_puzzles&count=10',
                 'submit_stats' => '?action=submit_stats',
                 'get_progress' => '?action=get_progress&device_id=DEVICE_ID',
-                'save_progress' => '?action=save_progress'
+                'save_progress' => '?action=save_progress',
+                'download_schema_dump' => '?action=download_schema_dump&token=SCHEMA_DUMP_TOKEN'
             ]
         ]);
         break;
@@ -87,6 +92,140 @@ switch ($action) {
 function ensureDeviceProgressColumns(PDO $pdo): void {
     $pdo->exec("ALTER TABLE devices ADD COLUMN IF NOT EXISTS max_puzzle_number INT NOT NULL DEFAULT 1");
     $pdo->exec("ALTER TABLE devices ADD COLUMN IF NOT EXISTS current_puzzle_number INT NOT NULL DEFAULT 1");
+}
+
+function ensureSchemaDumpAccessAllowed(): bool {
+    $expectedToken = trim((string)(getenv('SCHEMA_DUMP_TOKEN') ?: ''));
+    $providedToken = trim((string)($_GET['token'] ?? ''));
+    $isLocal = function_exists('isLocalRequest') && isLocalRequest();
+
+    if ($isLocal) {
+        return true;
+    }
+
+    if ($expectedToken !== '' && hash_equals($expectedToken, $providedToken)) {
+        return true;
+    }
+
+    http_response_code(403);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'Forbidden. Use local request or valid SCHEMA_DUMP_TOKEN.'
+    ]);
+    return false;
+}
+
+function quoteIdentifier(string $value): string {
+    return '"' . str_replace('"', '""', $value) . '"';
+}
+
+function handleDownloadSchemaDump(PDO $pdo): void {
+    if (!ensureSchemaDumpAccessAllowed()) {
+        return;
+    }
+
+    try {
+        $tablesStmt = $pdo->query("
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            ORDER BY table_name
+        ");
+        $tables = $tablesStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $columnsStmt = $pdo->prepare("
+            SELECT
+                cols.column_name,
+                pg_catalog.format_type(pg_attr.atttypid, pg_attr.atttypmod) AS formatted_type,
+                cols.is_nullable,
+                cols.column_default
+            FROM information_schema.columns cols
+            JOIN pg_catalog.pg_namespace pg_ns
+                ON pg_ns.nspname = cols.table_schema
+            JOIN pg_catalog.pg_class pg_cls
+                ON pg_cls.relname = cols.table_name
+                AND pg_cls.relnamespace = pg_ns.oid
+            JOIN pg_catalog.pg_attribute pg_attr
+                ON pg_attr.attrelid = pg_cls.oid
+                AND pg_attr.attname = cols.column_name
+                AND pg_attr.attnum > 0
+                AND NOT pg_attr.attisdropped
+            WHERE cols.table_schema = 'public' AND cols.table_name = ?
+            ORDER BY cols.ordinal_position
+        ");
+
+        $pkStmt = $pdo->prepare("
+            SELECT kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            WHERE tc.table_schema = 'public'
+                AND tc.table_name = ?
+                AND tc.constraint_type = 'PRIMARY KEY'
+            ORDER BY kcu.ordinal_position
+        ");
+
+        $lines = [];
+        $lines[] = '-- Arrow Game schema-only dump';
+        $lines[] = '-- Generated at: ' . gmdate('Y-m-d H:i:s') . ' UTC';
+        $lines[] = '-- Contains table/column definitions only (no rows)';
+        $lines[] = '';
+
+        foreach ($tables as $tableName) {
+            $columnsStmt->execute([$tableName]);
+            $columns = $columnsStmt->fetchAll();
+
+            $pkStmt->execute([$tableName]);
+            $primaryKeyColumns = $pkStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            $lines[] = 'CREATE TABLE IF NOT EXISTS '
+                . quoteIdentifier('public')
+                . '.'
+                . quoteIdentifier((string)$tableName)
+                . ' (';
+
+            $columnLines = [];
+            foreach ($columns as $column) {
+                $columnSql = '    '
+                    . quoteIdentifier((string)$column['column_name'])
+                    . ' '
+                    . (string)$column['formatted_type'];
+
+                if (($column['is_nullable'] ?? 'YES') === 'NO') {
+                    $columnSql .= ' NOT NULL';
+                }
+
+                $defaultValue = $column['column_default'] ?? null;
+                if ($defaultValue !== null) {
+                    $columnSql .= ' DEFAULT ' . $defaultValue;
+                }
+
+                $columnLines[] = $columnSql;
+            }
+
+            if (!empty($primaryKeyColumns)) {
+                $quotedPk = array_map(
+                    static fn($col): string => quoteIdentifier((string)$col),
+                    $primaryKeyColumns
+                );
+                $columnLines[] = '    PRIMARY KEY (' . implode(', ', $quotedPk) . ')';
+            }
+
+            $lines[] = implode(",\n", $columnLines);
+            $lines[] = ');';
+            $lines[] = '';
+        }
+
+        $filename = 'arrow_schema_' . gmdate('Ymd_His') . '.sql';
+        header('Content-Type: application/sql; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo implode("\n", $lines);
+    } catch (Exception $e) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Failed to export schema', 'details' => $e->getMessage()]);
+    }
 }
 
 function normalizeDeviceId(array $data, string $queryKey = 'device_id'): ?string {
