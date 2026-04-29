@@ -305,7 +305,7 @@ function handleSubmitStats($pdo) {
                     UPDATE players
                     SET device_id = COALESCE(players.device_id, ?),
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE email = ?
+                    WHERE LOWER(email) = LOWER(?)
                 ");
                 $linkStmt->execute([$deviceId, $playerEmail]);
             }
@@ -316,9 +316,22 @@ function handleSubmitStats($pdo) {
                     total_play_time_seconds = players.total_play_time_seconds + ?,
                     last_seen_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE email = ?
+                WHERE LOWER(email) = LOWER(?)
             ");
             $stmt->execute([$time, $playerEmail]);
+            // If email didn't match any row, still try device_id mapping fallback.
+            if ($stmt->rowCount() === 0 && $deviceId !== null) {
+                $stmt = $pdo->prepare("
+                    UPDATE players
+                    SET
+                        puzzles_played = players.puzzles_played + 1,
+                        total_play_time_seconds = players.total_play_time_seconds + ?,
+                        last_seen_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE device_id = ?
+                ");
+                $stmt->execute([$time, $deviceId]);
+            }
         } elseif ($deviceId !== null) {
             ensurePlayersTable($pdo);
             $stmt = $pdo->prepare("
@@ -428,7 +441,7 @@ function handleSaveProgress(PDO $pdo): void {
                     UPDATE players
                     SET device_id = COALESCE(players.device_id, ?),
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE email = ?
+                    WHERE LOWER(email) = LOWER(?)
                 ");
                 $linkStmt->execute([$deviceId, $playerEmail]);
             }
@@ -439,9 +452,22 @@ function handleSaveProgress(PDO $pdo): void {
                     current_puzzle_number = ?,
                     last_seen_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE email = ?
+                WHERE LOWER(email) = LOWER(?)
             ");
             $stmt->execute([$puzzleNumber, $puzzleNumber, $playerEmail]);
+            // If email didn't match any row, still try device_id mapping fallback.
+            if ($stmt->rowCount() === 0 && $deviceId !== null) {
+                $stmt = $pdo->prepare("
+                    UPDATE players
+                    SET
+                        max_puzzle_number = GREATEST(players.max_puzzle_number, ?),
+                        current_puzzle_number = ?,
+                        last_seen_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE device_id = ?
+                ");
+                $stmt->execute([$puzzleNumber, $puzzleNumber, $deviceId]);
+            }
         } elseif ($deviceId !== null) {
             ensurePlayersTable($pdo);
             $stmt = $pdo->prepare("
