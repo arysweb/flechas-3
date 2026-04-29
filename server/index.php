@@ -299,6 +299,16 @@ function handleSubmitStats($pdo) {
 
         if ($playerEmail !== null) {
             ensurePlayersTable($pdo);
+            if ($deviceId !== null) {
+                // Backfill/link device to player so future gameplay updates can resolve by device_id only.
+                $linkStmt = $pdo->prepare("
+                    UPDATE players
+                    SET device_id = COALESCE(players.device_id, ?),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE email = ?
+                ");
+                $linkStmt->execute([$deviceId, $playerEmail]);
+            }
             $stmt = $pdo->prepare("
                 UPDATE players
                 SET
@@ -412,6 +422,16 @@ function handleSaveProgress(PDO $pdo): void {
 
         if ($playerEmail !== null) {
             ensurePlayersTable($pdo);
+            if ($deviceId !== null) {
+                // Backfill/link device to player so future gameplay updates can resolve by device_id only.
+                $linkStmt = $pdo->prepare("
+                    UPDATE players
+                    SET device_id = COALESCE(players.device_id, ?),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE email = ?
+                ");
+                $linkStmt->execute([$deviceId, $playerEmail]);
+            }
             $stmt = $pdo->prepare("
                 UPDATE players
                 SET
