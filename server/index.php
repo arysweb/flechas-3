@@ -83,7 +83,7 @@ switch ($action) {
                 'submit_stats' => '?action=submit_stats',
                 'get_progress' => '?action=get_progress&device_id=DEVICE_ID',
                 'save_progress' => '?action=save_progress',
-                'download_schema_dump' => '?action=download_schema_dump&token=SCHEMA_DUMP_TOKEN'
+                'download_schema_dump' => '?action=download_schema_dump'
             ]
         ]);
         break;
@@ -94,36 +94,11 @@ function ensureDeviceProgressColumns(PDO $pdo): void {
     $pdo->exec("ALTER TABLE devices ADD COLUMN IF NOT EXISTS current_puzzle_number INT NOT NULL DEFAULT 1");
 }
 
-function ensureSchemaDumpAccessAllowed(): bool {
-    $expectedToken = trim((string)(getenv('SCHEMA_DUMP_TOKEN') ?: ''));
-    $providedToken = trim((string)($_GET['token'] ?? ''));
-    $isLocal = function_exists('isLocalRequest') && isLocalRequest();
-
-    if ($isLocal) {
-        return true;
-    }
-
-    if ($expectedToken !== '' && hash_equals($expectedToken, $providedToken)) {
-        return true;
-    }
-
-    http_response_code(403);
-    header('Content-Type: application/json');
-    echo json_encode([
-        'error' => 'Forbidden. Use local request or valid SCHEMA_DUMP_TOKEN.'
-    ]);
-    return false;
-}
-
 function quoteIdentifier(string $value): string {
     return '"' . str_replace('"', '""', $value) . '"';
 }
 
 function handleDownloadSchemaDump(PDO $pdo): void {
-    if (!ensureSchemaDumpAccessAllowed()) {
-        return;
-    }
-
     try {
         $tablesStmt = $pdo->query("
             SELECT table_name
