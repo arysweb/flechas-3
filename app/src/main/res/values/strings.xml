@@ -17,6 +17,54 @@
     <string name="onboarding_playerid_description">Takes two seconds. Just a name and your email and we will keep your progress safe forever. Even if you switch phones or reinstall the game.</string>
     <string name="onboarding_create_playerid">Create PlayerID</string>
     <string name="onboarding_just_play">I just want to play!</string>
+    <string name="onboarding_close">Close</string>
+    <string name="onboarding_signup_body">Your progress is worth keeping. Add your name and email and we will make sure it follows you forever. No matter what happens to your device.</string>
+    <string name="onboarding_email_label">Email</string>
+    <string name="onboarding_email_placeholder">you@example.com</string>
+    <string name="onboarding_player_name_label">Player name</string>
+    <string name="onboarding_player_name_placeholder">Player123</string>
+    <string name="onboarding_creating_playerid">Creating...</string>
+    <string name="onboarding_error_invalid_email">Please enter a valid email.</string>
+    <string name="onboarding_error_invalid_player_name">Player name must be 1-12 letters/numbers.</string>
+    <string name="onboarding_error_email_exists">That email is already registered.</string>
+    <string name="onboarding_error_create_player_failed">Could not create your player. Please try again.</string>
+    <string name="onboarding_error_network">Network error. Please try again.</string>
+    <string name="privacy_back">Back</string>
+    <string name="privacy_title">Privacy Policy</string>
+    <string name="privacy_subtitle">A calm, clear summary of how Arrow Game handles your progress data.</string>
+    <string name="privacy_collect_title">What we collect</string>
+    <string name="privacy_collect_body">To keep your progress connected across sessions, we store a device identifier and basic progress info on our server.</string>
+    <string name="privacy_use_title">How we use it</string>
+    <string name="privacy_use_body">We use your data only to power the core game features you rely on: saving progress and providing puzzles.</string>
+    <string name="privacy_choices_title">Your choices</string>
+    <string name="privacy_choices_body">You can skip onboarding and still play. If you clear app data, locally stored values reset.</string>
+    <string name="privacy_table_header_data_category">Data category</string>
+    <string name="privacy_table_header_example">Example</string>
+    <string name="privacy_table_header_purpose">Purpose</string>
+    <string name="privacy_table_row_progress">Progress</string>
+    <string name="privacy_table_row_progress_example">Level reached</string>
+    <string name="privacy_table_row_progress_purpose">Save and restore progress</string>
+    <string name="privacy_table_row_device">Device</string>
+    <string name="privacy_table_row_device_example">Android ID</string>
+    <string name="privacy_table_row_device_purpose">Link progress across devices</string>
+    <string name="privacy_table_row_stats">Stats</string>
+    <string name="privacy_table_row_stats_example">Time to finish</string>
+    <string name="privacy_table_row_stats_purpose">Improve gameplay feedback</string>
+    <string-array name="privacy_collect_bullets">
+        <item>Device identifier (used to link progress)</item>
+        <item>Progress data (levels reached)</item>
+        <item>Gameplay stats (time to finish levels)</item>
+    </string-array>
+    <string-array name="privacy_use_bullets">
+        <item>Load your current progress on startup</item>
+        <item>Save progress after you complete levels</item>
+        <item>Generate and share puzzles</item>
+    </string-array>
+    <string-array name="privacy_choices_bullets">
+        <item>Skip onboarding whenever you want</item>
+        <item>Progress is saved after level completion</item>
+        <item>Clear app data from Android settings to reset locally</item>
+    </string-array>
     
     <string-array name="success_words">
         <item>AWESOME!</item>

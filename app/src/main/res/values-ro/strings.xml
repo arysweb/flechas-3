@@ -6,6 +6,63 @@
     <string name="level_label">NIVEL %d</string>
     <string name="out_of_lives">FĂRĂ VIEȚI!</string>
     <string name="try_again_in">Reîncearcă în...</string>
+    <string name="onboarding_logo_content_description">Logo Arrow Game</string>
+    <string name="onboarding_welcome_title">Confidentialitatea conteaza</string>
+    <string name="onboarding_welcome_description">Fara reclame. Nu vindem datele tale. Stocam doar un identificator al dispozitivului pentru a salva progresul intre dispozitive.</string>
+    <string name="onboarding_agree_continue">Accepta si continua</string>
+    <string name="onboarding_read_privacy_policy">Citeste politica de confidentialitate.</string>
+    <string name="onboarding_playerid_title">PlayerID-ul tau</string>
+    <string name="onboarding_playerid_description">Dureaza doua secunde. Doar un nume si emailul tau, iar noi iti pastram progresul in siguranta pentru totdeauna. Chiar daca schimbi telefonul sau reinstalezi jocul.</string>
+    <string name="onboarding_create_playerid">Creeaza PlayerID</string>
+    <string name="onboarding_just_play">Vreau doar sa joc!</string>
+    <string name="onboarding_close">Inchide</string>
+    <string name="onboarding_signup_body">Progresul tau merita pastrat. Adauga numele si emailul tau si ne asiguram ca te urmeaza mereu. Indiferent ce se intampla cu dispozitivul tau.</string>
+    <string name="onboarding_email_label">Email</string>
+    <string name="onboarding_email_placeholder">tu@exemplu.com</string>
+    <string name="onboarding_player_name_label">Nume jucator</string>
+    <string name="onboarding_player_name_placeholder">Jucator123</string>
+    <string name="onboarding_creating_playerid">Se creeaza...</string>
+    <string name="onboarding_error_invalid_email">Introdu un email valid.</string>
+    <string name="onboarding_error_invalid_player_name">Numele trebuie sa aiba 1-12 litere sau cifre.</string>
+    <string name="onboarding_error_email_exists">Acest email este deja inregistrat.</string>
+    <string name="onboarding_error_create_player_failed">Nu am putut crea jucatorul. Incearca din nou.</string>
+    <string name="onboarding_error_network">Eroare de retea. Incearca din nou.</string>
+    <string name="privacy_back">Inapoi</string>
+    <string name="privacy_title">Politica de confidentialitate</string>
+    <string name="privacy_subtitle">Un rezumat clar despre cum Arrow Game gestioneaza datele tale de progres.</string>
+    <string name="privacy_collect_title">Ce colectam</string>
+    <string name="privacy_collect_body">Pentru a pastra progresul intre sesiuni, stocam un identificator al dispozitivului si date de baza despre progres pe serverul nostru.</string>
+    <string name="privacy_use_title">Cum folosim datele</string>
+    <string name="privacy_use_body">Folosim datele tale doar pentru functiile principale ale jocului: salvarea progresului si furnizarea puzzle-urilor.</string>
+    <string name="privacy_choices_title">Optiunile tale</string>
+    <string name="privacy_choices_body">Poti sari peste onboarding si totusi sa joci. Daca stergi datele aplicatiei, valorile locale se reseteaza.</string>
+    <string name="privacy_table_header_data_category">Categorie de date</string>
+    <string name="privacy_table_header_example">Exemplu</string>
+    <string name="privacy_table_header_purpose">Scop</string>
+    <string name="privacy_table_row_progress">Progres</string>
+    <string name="privacy_table_row_progress_example">Nivel atins</string>
+    <string name="privacy_table_row_progress_purpose">Salvare si restaurare progres</string>
+    <string name="privacy_table_row_device">Dispozitiv</string>
+    <string name="privacy_table_row_device_example">Android ID</string>
+    <string name="privacy_table_row_device_purpose">Legarea progresului intre dispozitive</string>
+    <string name="privacy_table_row_stats">Statistici</string>
+    <string name="privacy_table_row_stats_example">Timp de finalizare</string>
+    <string name="privacy_table_row_stats_purpose">Imbunatatirea experientei de joc</string>
+    <string-array name="privacy_collect_bullets">
+        <item>Identificator dispozitiv (pentru legarea progresului)</item>
+        <item>Date de progres (niveluri atinse)</item>
+        <item>Statistici de joc (timp pentru finalizarea nivelurilor)</item>
+    </string-array>
+    <string-array name="privacy_use_bullets">
+        <item>Incarcarea progresului actual la pornire</item>
+        <item>Salvarea progresului dupa finalizarea nivelurilor</item>
+        <item>Generarea si distribuirea puzzle-urilor</item>
+    </string-array>
+    <string-array name="privacy_choices_bullets">
+        <item>Sari onboarding oricand vrei</item>
+        <item>Progresul se salveaza dupa nivel finalizat</item>
+        <item>Sterge datele aplicatiei din setarile Android pentru resetare locala</item>
+    </string-array>
     
     <string-array name="success_words">
         <item>GROZAV!</item>

@@ -6,6 +6,63 @@
     <string name="level_label">LIVELLO %d</string>
     <string name="out_of_lives">VITE ESAURITE!</string>
     <string name="try_again_in">Riprova tra...</string>
+    <string name="onboarding_logo_content_description">Logo di Arrow Game</string>
+    <string name="onboarding_welcome_title">La privacy conta</string>
+    <string name="onboarding_welcome_description">Niente pubblicita. Nessuna vendita dei tuoi dati. Salviamo solo un identificatore del dispositivo per mantenere i tuoi progressi tra dispositivi.</string>
+    <string name="onboarding_agree_continue">Accetta e continua</string>
+    <string name="onboarding_read_privacy_policy">Leggi informativa sulla privacy.</string>
+    <string name="onboarding_playerid_title">Il tuo PlayerID</string>
+    <string name="onboarding_playerid_description">Ci vogliono due secondi. Solo un nome e la tua email e manterremo i tuoi progressi al sicuro per sempre. Anche se cambi telefono o reinstalli il gioco.</string>
+    <string name="onboarding_create_playerid">Crea PlayerID</string>
+    <string name="onboarding_just_play">Voglio solo giocare!</string>
+    <string name="onboarding_close">Chiudi</string>
+    <string name="onboarding_signup_body">Vale la pena conservare i tuoi progressi. Aggiungi nome ed email e ci assicureremo che ti seguano per sempre. Qualunque cosa accada al tuo dispositivo.</string>
+    <string name="onboarding_email_label">Email</string>
+    <string name="onboarding_email_placeholder">tuo@email.com</string>
+    <string name="onboarding_player_name_label">Nome giocatore</string>
+    <string name="onboarding_player_name_placeholder">Giocatore123</string>
+    <string name="onboarding_creating_playerid">Creazione...</string>
+    <string name="onboarding_error_invalid_email">Inserisci una email valida.</string>
+    <string name="onboarding_error_invalid_player_name">Il nome deve contenere 1-12 lettere o numeri.</string>
+    <string name="onboarding_error_email_exists">Questa email e gia registrata.</string>
+    <string name="onboarding_error_create_player_failed">Impossibile creare il giocatore. Riprova.</string>
+    <string name="onboarding_error_network">Errore di rete. Riprova.</string>
+    <string name="privacy_back">Indietro</string>
+    <string name="privacy_title">Informativa sulla privacy</string>
+    <string name="privacy_subtitle">Un riepilogo chiaro di come Arrow Game gestisce i tuoi dati di progresso.</string>
+    <string name="privacy_collect_title">Cosa raccogliamo</string>
+    <string name="privacy_collect_body">Per mantenere i tuoi progressi tra sessioni, salviamo un identificatore del dispositivo e dati base di progresso sul nostro server.</string>
+    <string name="privacy_use_title">Come li usiamo</string>
+    <string name="privacy_use_body">Usiamo i tuoi dati solo per le funzioni principali del gioco: salvare i progressi e fornire puzzle.</string>
+    <string name="privacy_choices_title">Le tue scelte</string>
+    <string name="privacy_choices_body">Puoi saltare onboarding e giocare comunque. Se cancelli i dati app, i valori locali vengono reimpostati.</string>
+    <string name="privacy_table_header_data_category">Categoria dati</string>
+    <string name="privacy_table_header_example">Esempio</string>
+    <string name="privacy_table_header_purpose">Scopo</string>
+    <string name="privacy_table_row_progress">Progressi</string>
+    <string name="privacy_table_row_progress_example">Livello raggiunto</string>
+    <string name="privacy_table_row_progress_purpose">Salvare e ripristinare i progressi</string>
+    <string name="privacy_table_row_device">Dispositivo</string>
+    <string name="privacy_table_row_device_example">Android ID</string>
+    <string name="privacy_table_row_device_purpose">Collegare i progressi tra dispositivi</string>
+    <string name="privacy_table_row_stats">Statistiche</string>
+    <string name="privacy_table_row_stats_example">Tempo di completamento</string>
+    <string name="privacy_table_row_stats_purpose">Migliorare esperienza di gioco</string>
+    <string-array name="privacy_collect_bullets">
+        <item>Identificatore dispositivo (per collegare i progressi)</item>
+        <item>Dati di progresso (livelli raggiunti)</item>
+        <item>Statistiche di gioco (tempo per completare i livelli)</item>
+    </string-array>
+    <string-array name="privacy_use_bullets">
+        <item>Caricare i tuoi progressi al avvio</item>
+        <item>Salvare i progressi dopo ogni livello completato</item>
+        <item>Generare e condividere puzzle</item>
+    </string-array>
+    <string-array name="privacy_choices_bullets">
+        <item>Saltare onboarding quando vuoi</item>
+        <item>I progressi vengono salvati dopo il completamento del livello</item>
+        <item>Cancellare i dati app dalle impostazioni Android per reimpostare in locale</item>
+    </string-array>
     
     <string-array name="success_words">
         <item>FANTASTICO!</item>
@@ -15,7 +72,7 @@
         <item>INCREDIBILE!</item>
         <item>SPETTACOLARE!</item>
         <item>BRILLANTE!</item>
-        <item>CE L\'HAI FATTA!</item>
+        <item>CE L HAI FATTA!</item>
         <item>MAMMA MIA!</item>
     </string-array>
 

@@ -90,7 +90,7 @@ import retrofit2.HttpException
 private val AppBg = Color(0xFF050A1F)
 private const val ONBOARDING_PREFS_NAME = "arrow_onboarding_prefs"
 private const val ONBOARDING_DONE_KEY = "onboarding_done"
-private const val SHOW_ONBOARDING_EVERY_LOAD_FOR_WORKING = true
+private const val SHOW_ONBOARDING_EVERY_LOAD_FOR_WORKING = false
 private val appTypography = Typography()
 
 class MainActivity : ComponentActivity() {
@@ -270,12 +270,12 @@ private fun PlayerSignupScreen(
         val trimmedName = playerName.trim()
 
         if (!isEmailValid(trimmedEmail)) {
-            emailError = "Please enter a valid email."
+            emailError = "onboarding_error_invalid_email"
             return
         }
 
         if (!isPlayerNameValid(trimmedName)) {
-            playerNameError = "Player name must be 1-12 letters/numbers."
+            playerNameError = "onboarding_error_invalid_player_name"
             return
         }
 
@@ -285,7 +285,7 @@ private fun PlayerSignupScreen(
             try {
                 val check = api.checkPlayerEmail(CheckPlayerEmailRequest(trimmedEmail))
                 if (check.exists) {
-                    emailError = "That email is already registered."
+                    emailError = "onboarding_error_email_exists"
                     return@launch
                 }
 
@@ -293,13 +293,13 @@ private fun PlayerSignupScreen(
                 if (created.success) {
                     onSignupSuccess()
                 } else {
-                    submitError = "Could not create your player. Please try again."
+                    submitError = "onboarding_error_create_player_failed"
                 }
             } catch (e: Exception) {
                 if (e is HttpException && e.code() == 409) {
-                    emailError = "That email is already registered."
+                    emailError = "onboarding_error_email_exists"
                 } else {
-                    submitError = "Network error. Please try again."
+                    submitError = "onboarding_error_network"
                 }
             } finally {
                 isLoading = false
@@ -358,7 +358,7 @@ private fun PlayerSignupScreen(
             ) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "Close",
+                contentDescription = stringResource(R.string.onboarding_close),
                 tint = Color.White,
                 modifier = Modifier
                     .align(Alignment.End)
@@ -367,7 +367,7 @@ private fun PlayerSignupScreen(
             )
 
             Text(
-                text = "Your progress is worth keeping. Add your name and email and we'll make sure it follows you forever. No matter what happens to your device.",
+                text = stringResource(R.string.onboarding_signup_body),
                 color = Color.White.copy(alpha = 0.78f),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Light,
@@ -386,7 +386,7 @@ private fun PlayerSignupScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = {
                     Text(
-                        "Email",
+                        stringResource(R.string.onboarding_email_label),
                         color = Color.LightGray,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -406,12 +406,18 @@ private fun PlayerSignupScreen(
                     errorCursorColor = Color(0xFFFF5A5F)
                 ),
                 textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
-                placeholder = { Text("you@example.com") }
+                placeholder = { Text(stringResource(R.string.onboarding_email_placeholder)) }
             )
 
             if (emailError != null) {
                 Text(
-                    text = emailError.orEmpty(),
+                    text = stringResource(
+                        when (emailError) {
+                            "onboarding_error_invalid_email" -> R.string.onboarding_error_invalid_email
+                            "onboarding_error_email_exists" -> R.string.onboarding_error_email_exists
+                            else -> R.string.onboarding_error_network
+                        }
+                    ),
                     color = Color(0xFFFF5A5F),
                     fontSize = 12.sp,
                     modifier = Modifier.align(Alignment.Start).padding(top = 6.dp)
@@ -427,7 +433,7 @@ private fun PlayerSignupScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = {
                     Text(
-                        "Player name",
+                        stringResource(R.string.onboarding_player_name_label),
                         color = Color.LightGray,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -447,12 +453,12 @@ private fun PlayerSignupScreen(
                     errorCursorColor = Color(0xFFFF5A5F)
                 ),
                 textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
-                placeholder = { Text("Player123") }
+                placeholder = { Text(stringResource(R.string.onboarding_player_name_placeholder)) }
             )
 
             if (playerNameError != null) {
                 Text(
-                    text = playerNameError.orEmpty(),
+                    text = stringResource(R.string.onboarding_error_invalid_player_name),
                     color = Color(0xFFFF5A5F),
                     fontSize = 12.sp,
                     modifier = Modifier.align(Alignment.Start).padding(top = 6.dp)
@@ -461,7 +467,12 @@ private fun PlayerSignupScreen(
 
             if (submitError != null) {
                 Text(
-                    text = submitError.orEmpty(),
+                    text = stringResource(
+                        when (submitError) {
+                            "onboarding_error_create_player_failed" -> R.string.onboarding_error_create_player_failed
+                            else -> R.string.onboarding_error_network
+                        }
+                    ),
                     color = Color(0xFFFF5A5F),
                     fontSize = 12.sp,
                     modifier = Modifier.align(Alignment.Start).padding(top = 6.dp)
@@ -480,7 +491,7 @@ private fun PlayerSignupScreen(
                 enabled = !isLoading
             ) {
                 Text(
-                    text = if (isLoading) "Creating..." else "Create PlayerID",
+                    text = if (isLoading) stringResource(R.string.onboarding_creating_playerid) else stringResource(R.string.onboarding_create_playerid),
                     color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
@@ -496,7 +507,9 @@ private fun PlayerSignupScreen(
 @Composable
 private fun PrivacyPolicyScreen(onBack: () -> Unit) {
     val muted = Color.White.copy(alpha = 0.78f)
-    val accent = Color(0xFF2E5BFF)
+    val collectBullets = stringArrayResource(R.array.privacy_collect_bullets).toList()
+    val useBullets = stringArrayResource(R.array.privacy_use_bullets).toList()
+    val choicesBullets = stringArrayResource(R.array.privacy_choices_bullets).toList()
 
     Column(
         modifier = Modifier
@@ -517,7 +530,7 @@ private fun PrivacyPolicyScreen(onBack: () -> Unit) {
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.height(44.dp)
             ) {
-                Text(text = "Back", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(text = stringResource(R.string.privacy_back), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
 
@@ -528,15 +541,16 @@ private fun PrivacyPolicyScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Privacy Policy",
+                text = stringResource(R.string.privacy_title),
                 color = Color.White,
                 fontSize = 42.sp,
+                lineHeight = 48.sp,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
 
             Text(
-                text = "A calm, clear summary of how Arrow Game handles your progress data.",
+                text = stringResource(R.string.privacy_subtitle),
                 color = muted,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Light,
@@ -548,39 +562,27 @@ private fun PrivacyPolicyScreen(onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(42.dp))
 
         PrivacySection(
-            title = "What we collect",
-            body = "To keep your progress connected across sessions, we store a device identifier and basic progress info on our server.",
-            bullets = listOf(
-                "Device identifier (used to link progress)",
-                "Progress data (levels reached)",
-                "Gameplay stats (time to finish levels)"
-            ),
+            title = stringResource(R.string.privacy_collect_title),
+            body = stringResource(R.string.privacy_collect_body),
+            bullets = collectBullets,
             muted = muted
         )
 
         Spacer(modifier = Modifier.height(42.dp))
 
         PrivacySection(
-            title = "How we use it",
-            body = "We use your data only to power the core game features you rely on: saving progress and providing puzzles.",
-            bullets = listOf(
-                "Load your current progress on startup",
-                "Save progress after you complete levels",
-                "Generate and share puzzles"
-            ),
+            title = stringResource(R.string.privacy_use_title),
+            body = stringResource(R.string.privacy_use_body),
+            bullets = useBullets,
             muted = muted
         )
 
         Spacer(modifier = Modifier.height(42.dp))
 
         PrivacySection(
-            title = "Your choices",
-            body = "You can skip onboarding and still play. If you clear app data, locally stored values reset.",
-            bullets = listOf(
-                "Skip onboarding whenever you want",
-                "Progress is saved after level completion",
-                "Clear app data from Android settings to reset locally"
-            ),
+            title = stringResource(R.string.privacy_choices_title),
+            body = stringResource(R.string.privacy_choices_body),
+            bullets = choicesBullets,
             muted = muted
         )
 
@@ -697,22 +699,38 @@ private fun PrivacyTable(
     ) {
         TableRow(
             bg = headerBg,
-            cells = listOf("Data category", "Example", "Purpose"),
+            cells = listOf(
+                stringResource(R.string.privacy_table_header_data_category),
+                stringResource(R.string.privacy_table_header_example),
+                stringResource(R.string.privacy_table_header_purpose)
+            ),
             isHeader = true
         )
         TableRow(
             bg = Color.Transparent,
-            cells = listOf("Progress", "Level reached", "Save and restore progress"),
+            cells = listOf(
+                stringResource(R.string.privacy_table_row_progress),
+                stringResource(R.string.privacy_table_row_progress_example),
+                stringResource(R.string.privacy_table_row_progress_purpose)
+            ),
             isHeader = false
         )
         TableRow(
             bg = Color.Transparent,
-            cells = listOf("Device", "Android ID", "Link progress across devices"),
+            cells = listOf(
+                stringResource(R.string.privacy_table_row_device),
+                stringResource(R.string.privacy_table_row_device_example),
+                stringResource(R.string.privacy_table_row_device_purpose)
+            ),
             isHeader = false
         )
         TableRow(
             bg = Color.Transparent,
-            cells = listOf("Stats", "Time to finish", "Improve gameplay feedback"),
+            cells = listOf(
+                stringResource(R.string.privacy_table_row_stats),
+                stringResource(R.string.privacy_table_row_stats_example),
+                stringResource(R.string.privacy_table_row_stats_purpose)
+            ),
             isHeader = false
         )
     }
@@ -755,6 +773,7 @@ private fun OnboardingScreen(
                 text = title,
                 color = Color.White,
                 fontSize = 36.sp,
+                lineHeight = 42.sp,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
