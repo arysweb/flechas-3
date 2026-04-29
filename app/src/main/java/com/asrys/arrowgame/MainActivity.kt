@@ -2,6 +2,7 @@ package com.asrys.arrowgame
 
 import android.content.Context
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -90,6 +91,8 @@ import retrofit2.HttpException
 private val AppBg = Color(0xFF050A1F)
 private const val ONBOARDING_PREFS_NAME = "arrow_onboarding_prefs"
 private const val ONBOARDING_DONE_KEY = "onboarding_done"
+private const val PLAYER_EMAIL_KEY = "player_email"
+private const val PLAYER_NAME_KEY = "player_name"
 private const val SHOW_ONBOARDING_EVERY_LOAD_FOR_WORKING = false
 private val appTypography = Typography()
 
@@ -234,6 +237,7 @@ private fun PlayerSignupScreen(
 ) {
     val api = remember { GameApi.create() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val verticalPadding = 56.dp
     val muted = Color.White.copy(alpha = 0.78f)
@@ -289,8 +293,22 @@ private fun PlayerSignupScreen(
                     return@launch
                 }
 
-                val created = api.createPlayer(CreatePlayerRequest(trimmedEmail, trimmedName))
+                val deviceId = Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ANDROID_ID
+                ) ?: ""
+                val created = api.createPlayer(
+                    CreatePlayerRequest(
+                        email = trimmedEmail,
+                        player_name = trimmedName,
+                        device_id = deviceId.ifBlank { null }
+                    )
+                )
                 if (created.success) {
+                    context.getSharedPreferences(ONBOARDING_PREFS_NAME, Context.MODE_PRIVATE).edit {
+                        putString(PLAYER_EMAIL_KEY, trimmedEmail.lowercase())
+                        putString(PLAYER_NAME_KEY, trimmedName)
+                    }
                     onSignupSuccess()
                 } else {
                     submitError = "onboarding_error_create_player_failed"

@@ -2,6 +2,7 @@ package com.asrys.arrowgame
 
 import android.app.Application
 import android.provider.Settings
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,11 +15,19 @@ import kotlinx.coroutines.launch
 class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val api = GameApi.create()
     private val seedPool = mutableListOf<Int>()
+    private val appContext = getApplication<Application>()
+    private val onboardingPrefs by lazy {
+        appContext.getSharedPreferences("arrow_onboarding_prefs", Context.MODE_PRIVATE)
+    }
     private val deviceId: String by lazy {
         Settings.Secure.getString(
-            getApplication<Application>().contentResolver,
+            appContext.contentResolver,
             Settings.Secure.ANDROID_ID
         ) ?: ""
+    }
+    private fun currentPlayerEmail(): String? {
+        val value = onboardingPrefs.getString("player_email", null)?.trim()?.lowercase()
+        return if (value.isNullOrBlank()) null else value
     }
 
     private val _state = MutableStateFlow(GameState())
@@ -81,7 +90,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val seed = _state.value.currentSeed ?: return
         viewModelScope.launch {
             try {
-                api.submitStats(StatsRequest(seed, timeSeconds.toDouble(), deviceId))
+                api.submitStats(StatsRequest(seed, timeSeconds.toDouble(), deviceId, currentPlayerEmail()))
                 Log.d("ArrowGame", "Successfully submitted stats for seed $seed")
             } catch (e: Exception) {
                 val errorBody = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
@@ -160,7 +169,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (deviceId.isBlank()) return
         viewModelScope.launch {
             try {
-                api.saveProgress(SaveProgressRequest(deviceId, puzzleNumber))
+                api.saveProgress(SaveProgressRequest(deviceId, puzzleNumber, currentPlayerEmail()))
                 Log.d("ArrowGame", "Saved progress at puzzle $puzzleNumber")
             } catch (e: Exception) {
                 val errorBody = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()

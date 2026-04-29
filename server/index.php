@@ -129,6 +129,7 @@ function handleSubmitStats($pdo) {
     $seed = isset($data['seed']) ? (int)$data['seed'] : null;
     $time = isset($data['time']) ? (float)$data['time'] : null;
     $deviceId = normalizeDeviceId($data);
+    $playerEmail = resolvePlayerEmailForProgress($pdo, $data, $deviceId);
 
     if ($seed === null || $time === null) {
         http_response_code(400);
@@ -180,6 +181,20 @@ function handleSubmitStats($pdo) {
                     updated_at = CURRENT_TIMESTAMP
             ");
             $stmt->execute([$deviceId, $time]);
+        }
+
+        if ($playerEmail !== null) {
+            ensurePlayersTable($pdo);
+            $stmt = $pdo->prepare("
+                UPDATE players
+                SET
+                    puzzles_played = players.puzzles_played + 1,
+                    total_play_time_seconds = players.total_play_time_seconds + ?,
+                    last_seen_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE email = ?
+            ");
+            $stmt->execute([$time, $playerEmail]);
         }
 
         $pdo->commit();
@@ -238,6 +253,7 @@ function handleSaveProgress(PDO $pdo): void {
     $data = json_decode(file_get_contents('php://input'), true) ?? [];
     $deviceId = normalizeDeviceId($data);
     $puzzleNumber = isset($data['puzzle_number']) ? (int)$data['puzzle_number'] : null;
+    $playerEmail = resolvePlayerEmailForProgress($pdo, $data, $deviceId);
 
     if ($deviceId === null || $puzzleNumber === null || $puzzleNumber < 1) {
         http_response_code(400);
@@ -268,6 +284,20 @@ function handleSaveProgress(PDO $pdo): void {
         ");
         $stmt->execute([$deviceId, $puzzleNumber, $puzzleNumber]);
 
+        if ($playerEmail !== null) {
+            ensurePlayersTable($pdo);
+            $stmt = $pdo->prepare("
+                UPDATE players
+                SET
+                    max_puzzle_number = GREATEST(players.max_puzzle_number, ?),
+                    current_puzzle_number = ?,
+                    last_seen_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE email = ?
+            ");
+            $stmt->execute([$puzzleNumber, $puzzleNumber, $playerEmail]);
+        }
+
         echo json_encode([
             'success' => true,
             'device_id' => $deviceId,
@@ -286,6 +316,7 @@ function ensurePlayersTable(PDO $pdo): void {
         CREATE TABLE IF NOT EXISTS players (
             email TEXT PRIMARY KEY,
             player_name VARCHAR(12) NOT NULL,
+            device_id TEXT,
             current_puzzle_number INTEGER NOT NULL DEFAULT 1,
             max_puzzle_number INTEGER NOT NULL DEFAULT 1,
             puzzles_played INTEGER NOT NULL DEFAULT 0,
@@ -296,11 +327,13 @@ function ensurePlayersTable(PDO $pdo): void {
         )
     ");
     // Migrate older installations where players table existed with fewer columns.
+    $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS device_id TEXT");
     $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS current_puzzle_number INTEGER NOT NULL DEFAULT 1");
     $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS max_puzzle_number INTEGER NOT NULL DEFAULT 1");
     $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS puzzles_played INTEGER NOT NULL DEFAULT 0");
     $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS total_play_time_seconds DOUBLE PRECISION NOT NULL DEFAULT 0");
     $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_players_device_id ON players(device_id)");
 }
 
 function ensureSignupRateLimitTable(PDO $pdo): void {
@@ -452,11 +485,31 @@ function normalizeEmail(array $data): ?string {
     $email = null;
     if (isset($data['email'])) {
         $email = trim((string)$data['email']);
+    } elseif (isset($data['player_email'])) {
+        $email = trim((string)$data['player_email']);
     } elseif (isset($data['Email'])) {
         $email = trim((string)$data['Email']);
     }
     if ($email === '' || $email === null) return null;
     return strtolower($email);
+}
+
+function resolvePlayerEmailForProgress(PDO $pdo, array $data, ?string $deviceId): ?string {
+    $email = normalizeEmail($data);
+    if ($email !== null && isEmailValidFormat($email)) {
+        return $email;
+    }
+    if ($deviceId === null) {
+        return null;
+    }
+    ensurePlayersTable($pdo);
+    $stmt = $pdo->prepare("SELECT email FROM players WHERE device_id = ? LIMIT 1");
+    $stmt->execute([$deviceId]);
+    $row = $stmt->fetch();
+    if (!$row || !isset($row['email'])) {
+        return null;
+    }
+    return strtolower(trim((string)$row['email']));
 }
 
 function handleCheckPlayerEmail(PDO $pdo): void {
@@ -504,6 +557,7 @@ function handleCreatePlayer(PDO $pdo): void {
 
     $email = normalizeEmail($data);
     $playerName = isset($data['player_name']) ? trim((string)$data['player_name']) : null;
+    $deviceId = normalizeDeviceId($data);
 
     if ($email === null || !isEmailValidFormat($email) || $playerName === null || $playerName === '') {
         http_response_code(400);
@@ -532,6 +586,7 @@ function handleCreatePlayer(PDO $pdo): void {
         INSERT INTO players (
             email,
             player_name,
+            device_id,
             current_puzzle_number,
             max_puzzle_number,
             puzzles_played,
@@ -540,10 +595,10 @@ function handleCreatePlayer(PDO $pdo): void {
             created_at,
             updated_at
         )
-        VALUES (?, ?, 1, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, 1, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (email) DO NOTHING
     ");
-    $stmt->execute([$email, $playerName]);
+    $stmt->execute([$email, $playerName, $deviceId]);
 
     $created = $stmt->rowCount() > 0;
 
