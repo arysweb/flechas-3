@@ -92,7 +92,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun nextPuzzle() {
-        val nextNumber = _state.value.puzzleNumber + 1
+        // Save the level the player just finished.
+        val finishedPuzzleNumber = _state.value.puzzleNumber
+        val nextNumber = finishedPuzzleNumber + 1
         val seed = getNextSeed()
         val puzzle = LevelRepository.generatePuzzle(puzzleNumber = nextNumber, seed = seed)
         _state.update {
@@ -109,12 +111,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 isLevelComplete = false
             )
         }
-        persistProgress(nextNumber)
+        // Store "last completed level", not "next level".
+        persistProgress(finishedPuzzleNumber)
     }
 
     fun startRandomPuzzle() {
+        val currentPuzzleNumber = _state.value.puzzleNumber
         val seed = getNextSeed()
-        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = _state.value.puzzleNumber, seed = seed)
+        val puzzle = LevelRepository.generatePuzzle(puzzleNumber = currentPuzzleNumber, seed = seed)
         _state.update {
             it.copy(
                 puzzle = puzzle,
@@ -128,6 +132,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 isLevelComplete = false
             )
         }
+        // Do not persist here: we only persist when the player completes the level.
     }
 
     private fun restoreProgressAndStart() {

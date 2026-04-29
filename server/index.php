@@ -255,7 +255,8 @@ function handleSaveProgress(PDO $pdo): void {
             ON CONFLICT (device_id)
             DO UPDATE SET
                 max_puzzle_number = GREATEST(devices.max_puzzle_number, EXCLUDED.max_puzzle_number),
-                current_puzzle_number = GREATEST(devices.current_puzzle_number, EXCLUDED.current_puzzle_number),
+                -- current_puzzle_number should always reflect the latest saved level
+                current_puzzle_number = EXCLUDED.current_puzzle_number,
                 last_seen_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
         ");
