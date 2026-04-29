@@ -1,12 +1,15 @@
 package com.asrys.arrowgame
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
@@ -22,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,10 +36,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,53 +60,38 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
-import androidx.compose.ui.text.googlefonts.GoogleFont.Provider
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.core.content.edit
+import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.min
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
+import android.util.Patterns
+import androidx.compose.runtime.rememberCoroutineScope
+import retrofit2.HttpException
 
 private val AppBg = Color(0xFF050A1F)
-private val googleFontProvider = Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
-)
-private val bricolageGrotesque = GoogleFont("Bricolage Grotesque")
-private val appFontFamily = FontFamily(
-    Font(googleFont = bricolageGrotesque, fontProvider = googleFontProvider, weight = FontWeight.Light),
-    Font(googleFont = bricolageGrotesque, fontProvider = googleFontProvider, weight = FontWeight.ExtraBold)
-)
-private val appTypography = Typography().run {
-    copy(
-        displayLarge = displayLarge.copy(fontFamily = appFontFamily),
-        displayMedium = displayMedium.copy(fontFamily = appFontFamily),
-        displaySmall = displaySmall.copy(fontFamily = appFontFamily),
-        headlineLarge = headlineLarge.copy(fontFamily = appFontFamily),
-        headlineMedium = headlineMedium.copy(fontFamily = appFontFamily),
-        headlineSmall = headlineSmall.copy(fontFamily = appFontFamily),
-        titleLarge = titleLarge.copy(fontFamily = appFontFamily),
-        titleMedium = titleMedium.copy(fontFamily = appFontFamily),
-        titleSmall = titleSmall.copy(fontFamily = appFontFamily),
-        bodyLarge = bodyLarge.copy(fontFamily = appFontFamily),
-        bodyMedium = bodyMedium.copy(fontFamily = appFontFamily),
-        bodySmall = bodySmall.copy(fontFamily = appFontFamily),
-        labelLarge = labelLarge.copy(fontFamily = appFontFamily),
-        labelMedium = labelMedium.copy(fontFamily = appFontFamily),
-        labelSmall = labelSmall.copy(fontFamily = appFontFamily)
-    )
-}
+private const val ONBOARDING_PREFS_NAME = "arrow_onboarding_prefs"
+private const val ONBOARDING_DONE_KEY = "onboarding_done"
+private const val SHOW_ONBOARDING_EVERY_LOAD_FOR_WORKING = true
+private val appTypography = Typography()
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,9 +113,39 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppRoot(vm: GameViewModel = viewModel()) {
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences(ONBOARDING_PREFS_NAME, Context.MODE_PRIVATE) }
+    var onboardingStep by rememberSaveable {
+        mutableIntStateOf(
+            if (SHOW_ONBOARDING_EVERY_LOAD_FOR_WORKING) 1
+            else if (prefs.getBoolean(ONBOARDING_DONE_KEY, false)) 0
+            else 1
+        )
+    }
+
+    // Mark as "seen" when screen 1 appears, so the player never sees onboarding again after installation.
+    // While we force onboarding every load for development, we skip persisting the "seen" flag.
+    LaunchedEffect(onboardingStep) {
+        if (!SHOW_ONBOARDING_EVERY_LOAD_FOR_WORKING && onboardingStep == 1) {
+            prefs.edit { putBoolean(ONBOARDING_DONE_KEY, true) }
+        }
+    }
+
+    if (onboardingStep != 0) {
+        OnboardingFlow(
+            step = onboardingStep,
+            onAgreeContinue = { onboardingStep = 2 },
+            onJustPlay = { onboardingStep = 0 },
+            onOpenPrivacyPolicy = { onboardingStep = 3 },
+            onBackFromPrivacyPolicy = { onboardingStep = 1 },
+            onOpenPlayerSignup = { onboardingStep = 4 },
+            onBackFromPlayerSignup = { onboardingStep = 2 }
+        )
+        return
+    }
+
     var inGame by rememberSaveable { mutableStateOf(false) }
     val state by vm.state.collectAsState()
-
     var displayedLevelInMenu by rememberSaveable { mutableStateOf(state.puzzleNumber) }
 
     if (!inGame) {
@@ -142,6 +166,636 @@ private fun AppRoot(vm: GameViewModel = viewModel()) {
         return
     }
     GameScreen(vm = vm, onReturnToMenu = { inGame = false })
+}
+
+@Composable
+private fun OnboardingFlow(
+    step: Int,
+    onAgreeContinue: () -> Unit,
+    onJustPlay: () -> Unit,
+    onOpenPrivacyPolicy: () -> Unit,
+    onBackFromPrivacyPolicy: () -> Unit,
+    onOpenPlayerSignup: () -> Unit,
+    onBackFromPlayerSignup: () -> Unit
+) {
+    when (step) {
+        1 -> OnboardingWelcomeScreen(
+            onAgreeContinue = onAgreeContinue,
+            onPrivacyClick = onOpenPrivacyPolicy
+        )
+        2 -> OnboardingPlayerIdScreen(
+            onJustPlay = onJustPlay,
+            onCreatePlayerId = onOpenPlayerSignup
+        )
+        3 -> PrivacyPolicyScreen(onBack = onBackFromPrivacyPolicy)
+        4 -> PlayerSignupScreen(
+            onJustPlay = onJustPlay,
+            onSignupSuccess = onJustPlay,
+            onBack = onBackFromPlayerSignup
+        )
+    }
+}
+
+@Composable
+private fun OnboardingWelcomeScreen(
+    onAgreeContinue: () -> Unit,
+    onPrivacyClick: () -> Unit
+) {
+    OnboardingScreen(
+        title = stringResource(R.string.onboarding_welcome_title),
+        description = stringResource(R.string.onboarding_welcome_description),
+        primaryButtonText = stringResource(R.string.onboarding_agree_continue),
+        linkText = stringResource(R.string.onboarding_read_privacy_policy),
+        onPrimaryButtonClick = onAgreeContinue,
+        onLinkClick = onPrivacyClick
+    )
+}
+
+@Composable
+private fun OnboardingPlayerIdScreen(
+    onJustPlay: () -> Unit,
+    onCreatePlayerId: () -> Unit
+) {
+    OnboardingScreen(
+        title = stringResource(R.string.onboarding_playerid_title),
+        description = stringResource(R.string.onboarding_playerid_description),
+        primaryButtonText = stringResource(R.string.onboarding_create_playerid),
+        linkText = stringResource(R.string.onboarding_just_play),
+        onPrimaryButtonClick = onCreatePlayerId,
+        onLinkClick = onJustPlay
+    )
+}
+
+@Composable
+private fun PlayerSignupScreen(
+    onBack: () -> Unit,
+    onJustPlay: () -> Unit,
+    onSignupSuccess: () -> Unit
+) {
+    val api = remember { GameApi.create() }
+    val scope = rememberCoroutineScope()
+
+    val verticalPadding = 56.dp
+    val muted = Color.White.copy(alpha = 0.78f)
+
+    var email by rememberSaveable { mutableStateOf("") }
+    var playerName by rememberSaveable { mutableStateOf("") }
+
+    var isLoading by rememberSaveable { mutableStateOf(false) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var playerNameError by remember { mutableStateOf<String?>(null) }
+    var submitError by remember { mutableStateOf<String?>(null) }
+    var showSheet by remember { mutableStateOf(false) }
+
+    fun sanitizePlayerName(input: String): String {
+        // Letters + numbers only, max 12 chars.
+        val filtered = input.replace(Regex("[^A-Za-z0-9]"), "")
+        return if (filtered.length > 12) filtered.substring(0, 12) else filtered
+    }
+
+    fun isEmailValid(value: String): Boolean {
+        return Patterns.EMAIL_ADDRESS.matcher(value).matches()
+    }
+
+    fun isPlayerNameValid(value: String): Boolean {
+        return Regex("^[A-Za-z0-9]{1,12}$").matches(value)
+    }
+
+    fun submit() {
+        emailError = null
+        playerNameError = null
+        submitError = null
+
+        val trimmedEmail = email.trim()
+        val trimmedName = playerName.trim()
+
+        if (!isEmailValid(trimmedEmail)) {
+            emailError = "Please enter a valid email."
+            return
+        }
+
+        if (!isPlayerNameValid(trimmedName)) {
+            playerNameError = "Player name must be 1-12 letters/numbers."
+            return
+        }
+
+        isLoading = true
+
+        scope.launch {
+            try {
+                val check = api.checkPlayerEmail(CheckPlayerEmailRequest(trimmedEmail))
+                if (check.exists) {
+                    emailError = "That email is already registered."
+                    return@launch
+                }
+
+                val created = api.createPlayer(CreatePlayerRequest(trimmedEmail, trimmedName))
+                if (created.success) {
+                    onSignupSuccess()
+                } else {
+                    submitError = "Could not create your player. Please try again."
+                }
+            } catch (e: Exception) {
+                if (e is HttpException && e.code() == 409) {
+                    emailError = "That email is already registered."
+                } else {
+                    submitError = "Network error. Please try again."
+                }
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    fun closeWithAnimation() {
+        scope.launch {
+            showSheet = false
+            delay(260L)
+            onBack()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        showSheet = true
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBg)
+    ) {
+        // Logo centered at the top.
+        Image(
+            painter = painterResource(id = R.drawable.arrows_logo),
+            contentDescription = stringResource(R.string.onboarding_logo_content_description),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = verticalPadding)
+                .fillMaxWidth(0.45f)
+        )
+
+        // Bottom sheet style: slides up, keeps top gap.
+        AnimatedVisibility(
+            visible = showSheet,
+            enter = slideInVertically(
+                animationSpec = tween(durationMillis = 350),
+                initialOffsetY = { fullHeight -> fullHeight }
+            ) + fadeIn(animationSpec = tween(durationMillis = 350)),
+            exit = slideOutVertically(
+                animationSpec = tween(durationMillis = 260),
+                targetOffsetY = { fullHeight -> fullHeight }
+            ) + fadeOut(animationSpec = tween(durationMillis = 220)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0C1635), RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .padding(start = 20.dp, end = 20.dp, top = 26.dp, bottom = 30.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Close",
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .size(28.dp)
+                    .clickable(onClick = ::closeWithAnimation)
+            )
+
+            Text(
+                text = "Your progress is worth keeping. Add your name and email and we'll make sure it follows you forever. No matter what happens to your device.",
+                color = Color.White.copy(alpha = 0.78f),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Light,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 4.dp, top = 10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            TextField(
+                value = email,
+                onValueChange = { email = it },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text(
+                        "Email",
+                        color = Color.LightGray,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                },
+                isError = emailError != null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                colors = TextFieldDefaults.colors(
+                    focusedLabelColor = Color.LightGray,
+                    unfocusedLabelColor = Color.LightGray,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color.White,
+                    focusedIndicatorColor = Color(0xFF2E5BFF),
+                    unfocusedIndicatorColor = Color.LightGray.copy(alpha = 0.4f),
+                    errorIndicatorColor = Color(0xFFFF5A5F),
+                    errorCursorColor = Color(0xFFFF5A5F)
+                ),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
+                placeholder = { Text("you@example.com") }
+            )
+
+            if (emailError != null) {
+                Text(
+                    text = emailError.orEmpty(),
+                    color = Color(0xFFFF5A5F),
+                    fontSize = 12.sp,
+                    modifier = Modifier.align(Alignment.Start).padding(top = 6.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            TextField(
+                value = playerName,
+                onValueChange = { playerName = sanitizePlayerName(it) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text(
+                        "Player name",
+                        color = Color.LightGray,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                },
+                isError = playerNameError != null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+                colors = TextFieldDefaults.colors(
+                    focusedLabelColor = Color.LightGray,
+                    unfocusedLabelColor = Color.LightGray,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color.White,
+                    focusedIndicatorColor = Color(0xFF2E5BFF),
+                    unfocusedIndicatorColor = Color.LightGray.copy(alpha = 0.4f),
+                    errorIndicatorColor = Color(0xFFFF5A5F),
+                    errorCursorColor = Color(0xFFFF5A5F)
+                ),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
+                placeholder = { Text("Player123") }
+            )
+
+            if (playerNameError != null) {
+                Text(
+                    text = playerNameError.orEmpty(),
+                    color = Color(0xFFFF5A5F),
+                    fontSize = 12.sp,
+                    modifier = Modifier.align(Alignment.Start).padding(top = 6.dp)
+                )
+            }
+
+            if (submitError != null) {
+                Text(
+                    text = submitError.orEmpty(),
+                    color = Color(0xFFFF5A5F),
+                    fontSize = 12.sp,
+                    modifier = Modifier.align(Alignment.Start).padding(top = 6.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            Button(
+                onClick = { if (!isLoading) submit() },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E5BFF)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(64.dp),
+                enabled = !isLoading
+            ) {
+                Text(
+                    text = if (isLoading) "Creating..." else "Create PlayerID",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrivacyPolicyScreen(onBack: () -> Unit) {
+    val muted = Color.White.copy(alpha = 0.78f)
+    val accent = Color(0xFF2E5BFF)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBg)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 44.dp),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(
+                onClick = onBack,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2A52)),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.height(44.dp)
+            ) {
+                Text(text = "Back", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Privacy Policy",
+                color = Color.White,
+                fontSize = 42.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center
+            )
+
+            Text(
+                text = "A calm, clear summary of how Arrow Game handles your progress data.",
+                color = muted,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Light,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(42.dp))
+
+        PrivacySection(
+            title = "What we collect",
+            body = "To keep your progress connected across sessions, we store a device identifier and basic progress info on our server.",
+            bullets = listOf(
+                "Device identifier (used to link progress)",
+                "Progress data (levels reached)",
+                "Gameplay stats (time to finish levels)"
+            ),
+            muted = muted
+        )
+
+        Spacer(modifier = Modifier.height(42.dp))
+
+        PrivacySection(
+            title = "How we use it",
+            body = "We use your data only to power the core game features you rely on: saving progress and providing puzzles.",
+            bullets = listOf(
+                "Load your current progress on startup",
+                "Save progress after you complete levels",
+                "Generate and share puzzles"
+            ),
+            muted = muted
+        )
+
+        Spacer(modifier = Modifier.height(42.dp))
+
+        PrivacySection(
+            title = "Your choices",
+            body = "You can skip onboarding and still play. If you clear app data, locally stored values reset.",
+            bullets = listOf(
+                "Skip onboarding whenever you want",
+                "Progress is saved after level completion",
+                "Clear app data from Android settings to reset locally"
+            ),
+            muted = muted
+        )
+
+        Spacer(modifier = Modifier.height(52.dp))
+    }
+}
+
+@Composable
+private fun PrivacySection(
+    title: String,
+    body: String,
+    bullets: List<String>,
+    muted: Color
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 18.dp)
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+
+        Text(
+            text = body,
+            color = muted,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Light,
+            modifier = Modifier.padding(top = 14.dp)
+        )
+
+        Column(modifier = Modifier.padding(top = 22.dp)) {
+            bullets.forEach { item ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = "•",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = item,
+                        color = muted,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Light
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrivacyTable(
+    cardBorder: Color,
+    muted: Color
+) {
+    val headerBg = Color(0xFF16224A)
+    val border = cardBorder
+    val c0 = 0.36f
+    val c1 = 0.32f
+    val c2 = 0.32f
+
+    @Composable
+    fun TableRow(
+        bg: Color,
+        cells: List<String>,
+        isHeader: Boolean
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(bg)
+                .padding(horizontal = 12.dp, vertical = if (isHeader) 10.dp else 12.dp)
+        ) {
+            Text(
+                text = cells[0],
+                color = muted,
+                fontWeight = if (isHeader) FontWeight.ExtraBold else FontWeight.Medium,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(c0)
+            )
+            Text(
+                text = cells[1],
+                color = muted,
+                fontWeight = if (isHeader) FontWeight.ExtraBold else FontWeight.Medium,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(c1)
+            )
+            Text(
+                text = cells[2],
+                color = muted,
+                fontWeight = if (isHeader) FontWeight.ExtraBold else FontWeight.Medium,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(c2)
+            )
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Transparent, RoundedCornerShape(18.dp))
+            .border(1.dp, border, RoundedCornerShape(18.dp))
+    ) {
+        TableRow(
+            bg = headerBg,
+            cells = listOf("Data category", "Example", "Purpose"),
+            isHeader = true
+        )
+        TableRow(
+            bg = Color.Transparent,
+            cells = listOf("Progress", "Level reached", "Save and restore progress"),
+            isHeader = false
+        )
+        TableRow(
+            bg = Color.Transparent,
+            cells = listOf("Device", "Android ID", "Link progress across devices"),
+            isHeader = false
+        )
+        TableRow(
+            bg = Color.Transparent,
+            cells = listOf("Stats", "Time to finish", "Improve gameplay feedback"),
+            isHeader = false
+        )
+    }
+}
+
+@Composable
+private fun OnboardingScreen(
+    title: String,
+    description: String,
+    primaryButtonText: String,
+    linkText: String,
+    onPrimaryButtonClick: () -> Unit,
+    onLinkClick: () -> Unit
+) {
+    val verticalPadding = 56.dp
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBg)
+    ) {
+        // Logo stays lower than before (same top margin as the bottom block margin).
+        Image(
+            painter = painterResource(id = R.drawable.arrows_logo),
+            contentDescription = stringResource(R.string.onboarding_logo_content_description),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = verticalPadding)
+                .fillMaxWidth(0.45f)
+        )
+
+        // Button + link are always pinned to the bottom with a bottom margin.
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, bottom = verticalPadding),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 36.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = description,
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+
+            Button(
+                onClick = onPrimaryButtonClick,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E5BFF)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .padding(top = 22.dp)
+                    .fillMaxWidth(0.8f)
+                    .height(64.dp)
+            ) {
+                Text(
+                    primaryButtonText,
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = linkText,
+                color = Color.LightGray,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                        .padding(top = 22.dp)
+                    .clickable(onClick = onLinkClick)
+            )
+        }
+    }
 }
 
 @Composable
@@ -235,8 +889,8 @@ private fun SuccessScreen(timeSeconds: Int, onAnimationEnd: () -> Unit) {
         modifier = Modifier.fillMaxSize().background(AppBg)
     ) {
         val density = LocalDensity.current.density
-        val screenWidth = maxWidth.value * density
-        val screenHeight = maxHeight.value * density
+        val screenWidth = this.maxWidth.value * density
+        val screenHeight = this.maxHeight.value * density
         
         LaunchedEffect(Unit) {
             val colors = listOf(
@@ -316,7 +970,7 @@ private fun SuccessScreen(timeSeconds: Int, onAnimationEnd: () -> Unit) {
 private fun FailScreen(onRetry: () -> Unit) {
     val words = stringArrayResource(R.array.failure_words).toList()
     val word = remember { words.random() }
-    var timeLeft by remember { mutableStateOf(10) }
+    var timeLeft by remember { mutableIntStateOf(10) }
 
     LaunchedEffect(Unit) {
         while (timeLeft > 0) {
@@ -367,8 +1021,8 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
     val level = state.puzzle ?: return
 
     var showSuccessScreen by remember(level.id) { mutableStateOf(false) }
-    var waveProgress by remember(level.id) { mutableStateOf(0f) }
-    var timerSeconds by remember(level.id) { mutableStateOf(0) }
+    var waveProgress by remember(level.id) { mutableFloatStateOf(0f) }
+    var timerSeconds by remember(level.id) { mutableIntStateOf(0) }
 
     LaunchedEffect(level.id, state.isLevelComplete, state.isGameOver) {
         if (!state.isLevelComplete && !state.isGameOver) {
@@ -379,7 +1033,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
         }
     }
 
-    var collisionGlowAlpha by remember(level.id) { mutableStateOf(0f) }
+    var collisionGlowAlpha by remember(level.id) { mutableFloatStateOf(0f) }
     LaunchedEffect(state.collisionTrigger) {
         if (state.collisionTrigger > 0) {
             androidx.compose.animation.core.Animatable(0.6f).animateTo(
@@ -408,7 +1062,7 @@ private fun GameScreen(vm: GameViewModel, onReturnToMenu: () -> Unit) {
         return
     }
 
-    var scale by remember(level.id) { mutableStateOf(1.0f) }
+    var scale by remember(level.id) { mutableFloatStateOf(1.0f) }
     var offset by remember(level.id) { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(state.isLevelComplete) {
@@ -693,7 +1347,7 @@ private fun ArrowBoard(
 }
 
 private fun ArrowPiece.occupiedCells(): List<Cell> {
-    return if (path.isNotEmpty()) path else listOf(start)
+    return path.ifEmpty { listOf(start) }
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
@@ -709,9 +1363,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArrowPath(
     val headHalfWidth = base * 0.24f
     val isMoving = progressCells > 0f
 
-    val cells = if (arrow.path.isNotEmpty()) arrow.path else listOf(arrow.start)
-    val rawPoints = computeRopeFollowPoints(cells, arrow.direction, progressCells, cellW, cellH)
-    val points = rawPoints
+    val cells = arrow.path.ifEmpty { listOf(arrow.start) }
+    val points = computeRopeFollowPoints(cells, arrow.direction, progressCells, cellW, cellH)
     if (points.isEmpty()) return
 
     val fallbackDir = when (arrow.direction) {
@@ -840,12 +1493,11 @@ private fun computeRopeFollowPoints(
     }
 
     val points = mutableListOf<Offset>()
-    val tTail = progressCells
     val tHead = (cells.size - 1).coerceAtLeast(0).toFloat() + progressCells
 
-    points.add(pointAt(tTail))
+    points.add(pointAt(progressCells))
 
-    val firstInt = kotlin.math.floor(tTail).toInt() + 1
+    val firstInt = kotlin.math.floor(progressCells).toInt() + 1
     val lastInt = kotlin.math.ceil(tHead).toInt() - 1
 
     for (i in firstInt..lastInt) {
@@ -858,7 +1510,7 @@ private fun computeRopeFollowPoints(
         }
     }
 
-    if (tHead > tTail) {
+    if (tHead > progressCells) {
         val pHead = pointAt(tHead)
         val lastP = points.last()
         val distSq = (pHead.x - lastP.x) * (pHead.x - lastP.x) + (pHead.y - lastP.y) * (pHead.y - lastP.y)

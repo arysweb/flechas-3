@@ -42,7 +42,7 @@ if (str_starts_with($normalizedPath, 'admin')) {
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 // Handle preflight requests
 if ($method === 'OPTIONS') {
@@ -57,6 +57,12 @@ switch ($action) {
         break;
     case 'submit_stats':
         handleSubmitStats($pdo);
+        break;
+    case 'check_player_email':
+        handleCheckPlayerEmail($pdo);
+        break;
+    case 'create_player':
+        handleCreatePlayer($pdo);
         break;
     case 'get_progress':
         handleGetProgress($pdo);
@@ -271,4 +277,282 @@ function handleSaveProgress(PDO $pdo): void {
         http_response_code(500);
         echo json_encode(['error' => 'Failed to save progress', 'details' => $e->getMessage()]);
     }
+}
+
+function ensurePlayersTable(PDO $pdo): void {
+    // Players are separate from "devices" (progress tracking).
+    // Signup is keyed by unique email.
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS players (
+            email TEXT PRIMARY KEY,
+            player_name VARCHAR(12) NOT NULL,
+            current_puzzle_number INTEGER NOT NULL DEFAULT 1,
+            max_puzzle_number INTEGER NOT NULL DEFAULT 1,
+            puzzles_played INTEGER NOT NULL DEFAULT 0,
+            total_play_time_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+            last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    ");
+    // Migrate older installations where players table existed with fewer columns.
+    $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS current_puzzle_number INTEGER NOT NULL DEFAULT 1");
+    $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS max_puzzle_number INTEGER NOT NULL DEFAULT 1");
+    $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS puzzles_played INTEGER NOT NULL DEFAULT 0");
+    $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS total_play_time_seconds DOUBLE PRECISION NOT NULL DEFAULT 0");
+    $pdo->exec("ALTER TABLE players ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()");
+}
+
+function ensureSignupRateLimitTable(PDO $pdo): void {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS signup_rate_limits (
+            rl_key TEXT PRIMARY KEY,
+            window_started_at TIMESTAMPTZ NOT NULL,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    ");
+}
+
+function getClientIp(): string {
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if ($forwarded !== '') {
+        $parts = explode(',', $forwarded);
+        $candidate = trim($parts[0]);
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+    return trim((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+}
+
+function isEmailValidFormat(string $email): bool {
+    if (strlen($email) > 254) {
+        return false;
+    }
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+function rejectIfHoneypotTripped(array $data): bool {
+    // Expected to stay empty. Bots that autofill hidden fields will fail here.
+    $honeypot = trim((string)($data['website'] ?? ''));
+    if ($honeypot !== '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid request']);
+        return true;
+    }
+    return false;
+}
+
+function enforceSignupRateLimit(PDO $pdo, string $key, int $maxAttempts, int $windowSeconds): bool {
+    ensureSignupRateLimitTable($pdo);
+    $now = time();
+    $windowStart = date('Y-m-d H:i:sP', $now);
+
+    $stmt = $pdo->prepare("
+        INSERT INTO signup_rate_limits (rl_key, window_started_at, attempt_count, updated_at)
+        VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT (rl_key)
+        DO UPDATE SET
+            attempt_count = CASE
+                WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - signup_rate_limits.window_started_at)) > ?
+                    THEN 1
+                ELSE signup_rate_limits.attempt_count + 1
+            END,
+            window_started_at = CASE
+                WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - signup_rate_limits.window_started_at)) > ?
+                    THEN CURRENT_TIMESTAMP
+                ELSE signup_rate_limits.window_started_at
+            END,
+            updated_at = CURRENT_TIMESTAMP
+        RETURNING attempt_count
+    ");
+    $stmt->execute([$key, $windowStart, $windowSeconds, $windowSeconds]);
+    $row = $stmt->fetch();
+    $count = isset($row['attempt_count']) ? (int)$row['attempt_count'] : 0;
+
+    if ($count > $maxAttempts) {
+        http_response_code(429);
+        echo json_encode(['error' => 'Too many attempts. Please try again later.']);
+        return false;
+    }
+
+    return true;
+}
+
+function base64UrlDecode(string $input): string|false {
+    $remainder = strlen($input) % 4;
+    if ($remainder > 0) {
+        $input .= str_repeat('=', 4 - $remainder);
+    }
+    $input = strtr($input, '-_', '+/');
+    return base64_decode($input, true);
+}
+
+function verifyHs256Jwt(string $jwt, string $secret): ?array {
+    $parts = explode('.', $jwt);
+    if (count($parts) !== 3) {
+        return null;
+    }
+    [$encodedHeader, $encodedPayload, $encodedSig] = $parts;
+
+    $headerJson = base64UrlDecode($encodedHeader);
+    $payloadJson = base64UrlDecode($encodedPayload);
+    $sigBin = base64UrlDecode($encodedSig);
+    if ($headerJson === false || $payloadJson === false || $sigBin === false) {
+        return null;
+    }
+
+    $header = json_decode($headerJson, true);
+    $payload = json_decode($payloadJson, true);
+    if (!is_array($header) || !is_array($payload)) {
+        return null;
+    }
+    if (($header['alg'] ?? '') !== 'HS256') {
+        return null;
+    }
+
+    $expected = hash_hmac('sha256', $encodedHeader . '.' . $encodedPayload, $secret, true);
+    if (!hash_equals($expected, $sigBin)) {
+        return null;
+    }
+
+    if (isset($payload['exp']) && is_numeric($payload['exp']) && (int)$payload['exp'] < time()) {
+        return null;
+    }
+
+    return $payload;
+}
+
+function requireSignupJwtIfConfigured(): bool {
+    $secret = trim((string)(getenv('SIGNUP_JWT_SECRET') ?: ''));
+    if ($secret === '') {
+        // Backward-compatible: disabled unless configured.
+        return true;
+    }
+
+    $auth = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+    if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $matches)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Missing bearer token']);
+        return false;
+    }
+
+    $payload = verifyHs256Jwt(trim($matches[1]), $secret);
+    if ($payload === null) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid token']);
+        return false;
+    }
+
+    return true;
+}
+
+function normalizeEmail(array $data): ?string {
+    $email = null;
+    if (isset($data['email'])) {
+        $email = trim((string)$data['email']);
+    } elseif (isset($data['Email'])) {
+        $email = trim((string)$data['Email']);
+    }
+    if ($email === '' || $email === null) return null;
+    return strtolower($email);
+}
+
+function handleCheckPlayerEmail(PDO $pdo): void {
+    if (!requireSignupJwtIfConfigured()) {
+        return;
+    }
+    $data = json_decode(file_get_contents('php://input'), true) ?? [];
+    if (rejectIfHoneypotTripped($data)) {
+        return;
+    }
+
+    $email = normalizeEmail($data);
+
+    if ($email === null || !isEmailValidFormat($email)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid data. Required: valid email (string)']);
+        return;
+    }
+
+    $ip = getClientIp();
+    if (!enforceSignupRateLimit($pdo, 'check_email:ip:' . $ip, 30, 600)) {
+        return;
+    }
+    if (!enforceSignupRateLimit($pdo, 'check_email:email:' . hash('sha256', $email), 12, 600)) {
+        return;
+    }
+
+    ensurePlayersTable($pdo);
+
+    $stmt = $pdo->prepare("SELECT 1 FROM players WHERE email = ? LIMIT 1");
+    $stmt->execute([$email]);
+    $row = $stmt->fetch();
+
+    echo json_encode(['exists' => $row !== false]);
+}
+
+function handleCreatePlayer(PDO $pdo): void {
+    if (!requireSignupJwtIfConfigured()) {
+        return;
+    }
+    $data = json_decode(file_get_contents('php://input'), true) ?? [];
+    if (rejectIfHoneypotTripped($data)) {
+        return;
+    }
+
+    $email = normalizeEmail($data);
+    $playerName = isset($data['player_name']) ? trim((string)$data['player_name']) : null;
+
+    if ($email === null || !isEmailValidFormat($email) || $playerName === null || $playerName === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid data. Required: valid email (string), player_name (string)']);
+        return;
+    }
+
+    // UI validation is expected, but keep the DB safe too.
+    if (!preg_match('/^[A-Za-z0-9]{1,12}$/', $playerName)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid player_name. Use letters and numbers only (max 12 chars).']);
+        return;
+    }
+
+    $ip = getClientIp();
+    if (!enforceSignupRateLimit($pdo, 'create_player:ip:' . $ip, 8, 600)) {
+        return;
+    }
+    if (!enforceSignupRateLimit($pdo, 'create_player:email:' . hash('sha256', $email), 4, 900)) {
+        return;
+    }
+
+    ensurePlayersTable($pdo);
+
+    $stmt = $pdo->prepare("
+        INSERT INTO players (
+            email,
+            player_name,
+            current_puzzle_number,
+            max_puzzle_number,
+            puzzles_played,
+            total_play_time_seconds,
+            last_seen_at,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, 1, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (email) DO NOTHING
+    ");
+    $stmt->execute([$email, $playerName]);
+
+    $created = $stmt->rowCount() > 0;
+
+    if (!$created) {
+        http_response_code(409);
+    }
+
+    echo json_encode([
+        'success' => $created,
+        'exists' => !$created
+    ]);
 }

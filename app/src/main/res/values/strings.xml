@@ -7,6 +7,17 @@
     <string name="out_of_lives">OUT OF LIVES!</string>
     <string name="try_again_in">Try again in...</string>
     
+    <!-- Onboarding -->
+    <string name="onboarding_logo_content_description">Arrow Game logo</string>
+    <string name="onboarding_welcome_title">Privacy matters</string>
+    <string name="onboarding_welcome_description">No ads. No selling your data. We only store a device identifier to save your progress across devices.</string>
+    <string name="onboarding_agree_continue">Agree &amp; continue</string>
+    <string name="onboarding_read_privacy_policy">Read the Privacy Policy.</string>
+    <string name="onboarding_playerid_title">Your PlayerID</string>
+    <string name="onboarding_playerid_description">Takes two seconds. Just a name and your email and we will keep your progress safe forever. Even if you switch phones or reinstall the game.</string>
+    <string name="onboarding_create_playerid">Create PlayerID</string>
+    <string name="onboarding_just_play">I just want to play!</string>
+    
     <string-array name="success_words">
         <item>AWESOME!</item>
         <item>NICE!</item>
