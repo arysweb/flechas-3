@@ -309,29 +309,7 @@ function handleSubmitStats($pdo) {
                 ");
                 $linkStmt->execute([$deviceId, $playerEmail]);
             }
-            $stmt = $pdo->prepare("
-                UPDATE players
-                SET
-                    puzzles_played = players.puzzles_played + 1,
-                    total_play_time_seconds = players.total_play_time_seconds + ?,
-                    last_seen_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE LOWER(email) = LOWER(?)
-            ");
-            $stmt->execute([$time, $playerEmail]);
-            // If email didn't match any row, still try device_id mapping fallback.
-            if ($stmt->rowCount() === 0 && $deviceId !== null) {
-                $stmt = $pdo->prepare("
-                    UPDATE players
-                    SET
-                        puzzles_played = players.puzzles_played + 1,
-                        total_play_time_seconds = players.total_play_time_seconds + ?,
-                        last_seen_at = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE device_id = ?
-                ");
-                $stmt->execute([$time, $deviceId]);
-            }
+            upsertPlayerStatsByEmail($pdo, $playerEmail, $deviceId, $time);
         } elseif ($deviceId !== null) {
             ensurePlayersTable($pdo);
             $stmt = $pdo->prepare("
@@ -445,29 +423,7 @@ function handleSaveProgress(PDO $pdo): void {
                 ");
                 $linkStmt->execute([$deviceId, $playerEmail]);
             }
-            $stmt = $pdo->prepare("
-                UPDATE players
-                SET
-                    max_puzzle_number = GREATEST(players.max_puzzle_number, ?),
-                    current_puzzle_number = ?,
-                    last_seen_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE LOWER(email) = LOWER(?)
-            ");
-            $stmt->execute([$puzzleNumber, $puzzleNumber, $playerEmail]);
-            // If email didn't match any row, still try device_id mapping fallback.
-            if ($stmt->rowCount() === 0 && $deviceId !== null) {
-                $stmt = $pdo->prepare("
-                    UPDATE players
-                    SET
-                        max_puzzle_number = GREATEST(players.max_puzzle_number, ?),
-                        current_puzzle_number = ?,
-                        last_seen_at = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE device_id = ?
-                ");
-                $stmt->execute([$puzzleNumber, $puzzleNumber, $deviceId]);
-            }
+            upsertPlayerProgressByEmail($pdo, $playerEmail, $deviceId, $puzzleNumber);
         } elseif ($deviceId !== null) {
             ensurePlayersTable($pdo);
             $stmt = $pdo->prepare("
@@ -676,6 +632,90 @@ function normalizeEmail(array $data): ?string {
     }
     if ($email === '' || $email === null) return null;
     return strtolower($email);
+}
+
+function fallbackPlayerNameFromEmail(string $email): string {
+    $localPart = explode('@', $email, 2)[0] ?? '';
+    $sanitized = preg_replace('/[^A-Za-z0-9]/', '', $localPart);
+    $sanitized = substr((string)$sanitized, 0, 12);
+    if ($sanitized === '') {
+        return 'Player';
+    }
+    return $sanitized;
+}
+
+function upsertPlayerStatsByEmail(PDO $pdo, string $email, ?string $deviceId, float $time): void {
+    $fallbackName = fallbackPlayerNameFromEmail($email);
+    $stmt = $pdo->prepare("
+        INSERT INTO players (
+            email,
+            player_name,
+            device_id,
+            current_puzzle_number,
+            max_puzzle_number,
+            puzzles_played,
+            total_play_time_seconds,
+            last_seen_at,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            LOWER(?),
+            ?,
+            ?,
+            1,
+            1,
+            1,
+            ?,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (email) DO UPDATE SET
+            device_id = COALESCE(players.device_id, EXCLUDED.device_id),
+            puzzles_played = players.puzzles_played + 1,
+            total_play_time_seconds = players.total_play_time_seconds + EXCLUDED.total_play_time_seconds,
+            last_seen_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+    ");
+    $stmt->execute([$email, $fallbackName, $deviceId, $time]);
+}
+
+function upsertPlayerProgressByEmail(PDO $pdo, string $email, ?string $deviceId, int $puzzleNumber): void {
+    $fallbackName = fallbackPlayerNameFromEmail($email);
+    $stmt = $pdo->prepare("
+        INSERT INTO players (
+            email,
+            player_name,
+            device_id,
+            current_puzzle_number,
+            max_puzzle_number,
+            puzzles_played,
+            total_play_time_seconds,
+            last_seen_at,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            LOWER(?),
+            ?,
+            ?,
+            ?,
+            ?,
+            0,
+            0,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (email) DO UPDATE SET
+            device_id = COALESCE(players.device_id, EXCLUDED.device_id),
+            max_puzzle_number = GREATEST(players.max_puzzle_number, EXCLUDED.max_puzzle_number),
+            current_puzzle_number = EXCLUDED.current_puzzle_number,
+            last_seen_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+    ");
+    $stmt->execute([$email, $fallbackName, $deviceId, $puzzleNumber, $puzzleNumber]);
 }
 
 function resolvePlayerEmailForProgress(PDO $pdo, array $data, ?string $deviceId): ?string {
