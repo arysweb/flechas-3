@@ -288,11 +288,6 @@ private fun PlayerSignupScreen(
         scope.launch {
             try {
                 val check = api.checkPlayerEmail(CheckPlayerEmailRequest(trimmedEmail))
-                if (check.exists) {
-                    emailError = "onboarding_error_email_exists"
-                    return@launch
-                }
-
                 val deviceId = Settings.Secure.getString(
                     context.contentResolver,
                     Settings.Secure.ANDROID_ID
@@ -311,14 +306,14 @@ private fun PlayerSignupScreen(
                     }
                     onSignupSuccess()
                 } else {
-                    submitError = "onboarding_error_create_player_failed"
+                    if (check.exists) {
+                        emailError = "onboarding_error_email_exists"
+                    } else {
+                        submitError = "onboarding_error_create_player_failed"
+                    }
                 }
             } catch (e: Exception) {
-                if (e is HttpException && e.code() == 409) {
-                    emailError = "onboarding_error_email_exists"
-                } else {
-                    submitError = "onboarding_error_network"
-                }
+                submitError = "onboarding_error_network"
             } finally {
                 isLoading = false
             }

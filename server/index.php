@@ -195,6 +195,18 @@ function handleSubmitStats($pdo) {
                 WHERE email = ?
             ");
             $stmt->execute([$time, $playerEmail]);
+        } elseif ($deviceId !== null) {
+            ensurePlayersTable($pdo);
+            $stmt = $pdo->prepare("
+                UPDATE players
+                SET
+                    puzzles_played = players.puzzles_played + 1,
+                    total_play_time_seconds = players.total_play_time_seconds + ?,
+                    last_seen_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE device_id = ?
+            ");
+            $stmt->execute([$time, $deviceId]);
         }
 
         $pdo->commit();
@@ -296,6 +308,18 @@ function handleSaveProgress(PDO $pdo): void {
                 WHERE email = ?
             ");
             $stmt->execute([$puzzleNumber, $puzzleNumber, $playerEmail]);
+        } elseif ($deviceId !== null) {
+            ensurePlayersTable($pdo);
+            $stmt = $pdo->prepare("
+                UPDATE players
+                SET
+                    max_puzzle_number = GREATEST(players.max_puzzle_number, ?),
+                    current_puzzle_number = ?,
+                    last_seen_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE device_id = ?
+            ");
+            $stmt->execute([$puzzleNumber, $puzzleNumber, $deviceId]);
         }
 
         echo json_encode([
@@ -582,6 +606,10 @@ function handleCreatePlayer(PDO $pdo): void {
 
     ensurePlayersTable($pdo);
 
+    $stmt = $pdo->prepare("SELECT 1 FROM players WHERE email = ? LIMIT 1");
+    $stmt->execute([$email]);
+    $alreadyExisted = $stmt->fetch() !== false;
+
     $stmt = $pdo->prepare("
         INSERT INTO players (
             email,
@@ -596,18 +624,15 @@ function handleCreatePlayer(PDO $pdo): void {
             updated_at
         )
         VALUES (?, ?, ?, 1, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (email) DO NOTHING
+        ON CONFLICT (email) DO UPDATE SET
+            device_id = COALESCE(EXCLUDED.device_id, players.device_id),
+            last_seen_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
     ");
     $stmt->execute([$email, $playerName, $deviceId]);
 
-    $created = $stmt->rowCount() > 0;
-
-    if (!$created) {
-        http_response_code(409);
-    }
-
     echo json_encode([
-        'success' => $created,
-        'exists' => !$created
+        'success' => true,
+        'exists' => $alreadyExisted
     ]);
 }
