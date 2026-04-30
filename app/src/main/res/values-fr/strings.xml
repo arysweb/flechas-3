@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Jeu de flèches</string>
     <string name="menu_title">Puzzle de flèches</string>
+    <string name="menu_greeting">Salut %1$s</string>
     <string name="play_button">JOUER</string>
     <string name="level_label">NIVEAU %d</string>
     <string name="out_of_lives">PLUS DE VIES !</string>

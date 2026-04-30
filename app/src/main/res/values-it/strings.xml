@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Gioco di frecce</string>
     <string name="menu_title">Puzzle di frecce</string>
+    <string name="menu_greeting">Ciao %1$s</string>
     <string name="play_button">GIOCA</string>
     <string name="level_label">LIVELLO %d</string>
     <string name="out_of_lives">VITE ESAURITE!</string>

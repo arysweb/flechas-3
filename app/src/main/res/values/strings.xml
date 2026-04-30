@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Arrow Game</string>
     <string name="menu_title">Arrow Puzzle</string>
+    <string name="menu_greeting">Hey %1$s</string>
     <string name="play_button">PLAY</string>
     <string name="level_label">LEVEL %d</string>
     <string name="out_of_lives">OUT OF LIVES!</string>

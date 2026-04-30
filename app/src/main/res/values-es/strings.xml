@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Juego de Flechas</string>
     <string name="menu_title">Puzzle de Flechas</string>
+    <string name="menu_greeting">Hola %1$s</string>
     <string name="play_button">JUGAR</string>
     <string name="level_label">NIVEL %d</string>
     <string name="out_of_lives">¡SIN VIDAS!</string>

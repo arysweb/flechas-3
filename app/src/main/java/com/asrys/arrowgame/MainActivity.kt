@@ -66,6 +66,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -832,12 +834,40 @@ private fun OnboardingScreen(
 
 @Composable
 private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences(ONBOARDING_PREFS_NAME, Context.MODE_PRIVATE) }
+    val email = prefs.getString(PLAYER_EMAIL_KEY, null)
+    val playerName = prefs.getString(PLAYER_NAME_KEY, "")
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBg)
             .padding(20.dp)
     ) {
+        if (email != null && !playerName.isNullOrBlank()) {
+            Text(
+                text = buildAnnotatedString {
+                    val fullText = stringResource(R.string.menu_greeting, playerName)
+                    val startIndex = fullText.indexOf(playerName)
+                    append(fullText)
+                    if (startIndex >= 0) {
+                        addStyle(
+                            style = SpanStyle(fontWeight = FontWeight.ExtraBold),
+                            start = startIndex,
+                            end = startIndex + playerName.length
+                        )
+                    }
+                },
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Light,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 64.dp)
+            )
+        }
+        
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -886,17 +916,23 @@ private fun MainMenu(levelNumber: Int, onPlay: () -> Unit) {
                 }
             }
         }
-        Button(
-            onClick = onPlay,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E5BFF)),
-            shape = RoundedCornerShape(16.dp),
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 32.dp)
-                .fillMaxWidth(0.8f)
-                .height(64.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(stringResource(R.string.play_button), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Button(
+                onClick = onPlay,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E5BFF)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(64.dp)
+            ) {
+                Text(stringResource(R.string.play_button), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

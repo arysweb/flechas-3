@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Pfeilspiel</string>
     <string name="menu_title">Pfeilrätsel</string>
+    <string name="menu_greeting">Hallo %1$s</string>
     <string name="play_button">SPIELEN</string>
     <string name="level_label">LEVEL %d</string>
     <string name="out_of_lives">KEINE LEBEN MEHR!</string>

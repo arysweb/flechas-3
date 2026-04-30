@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Jocul Săgeților</string>
     <string name="menu_title">Puzzle cu Săgeți</string>
+    <string name="menu_greeting">Salut %1$s</string>
     <string name="play_button">JOACĂ</string>
     <string name="level_label">NIVEL %d</string>
     <string name="out_of_lives">FĂRĂ VIEȚI!</string>

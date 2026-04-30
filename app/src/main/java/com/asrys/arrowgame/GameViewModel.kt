@@ -238,9 +238,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val frameMs = 5L
             val constantSpeed = 40.0f // Constant speed regardless of zoom
             var progress = 0f
+            var lastTime = System.nanoTime()
             while (progress < maxProgress) {
                 delay(frameMs)
-                progress = (progress + constantSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
+                val now = System.nanoTime()
+                val dt = (now - lastTime) / 1_000_000_000f
+                lastTime = now
+                progress = (progress + constantSpeed * dt).coerceAtMost(maxProgress)
                 val progressSnapshot = progress
                 _state.update { state ->
                     if (state.puzzle?.id != puzzleId) return@update state
@@ -289,9 +293,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val frameMs = 5L
             val constantSpeed = 40.0f // Constant speed regardless of zoom
             var progress = 0f
+            var lastTime = System.nanoTime()
             while (progress < maxProgress) {
                 delay(frameMs)
-                progress = (progress + constantSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
+                val now = System.nanoTime()
+                val dt = (now - lastTime) / 1_000_000_000f
+                lastTime = now
+                progress = (progress + constantSpeed * dt).coerceAtMost(maxProgress)
                 val progressSnapshot = progress
                 _state.update { state ->
                     if (state.puzzle?.id != puzzleId) return@update state
