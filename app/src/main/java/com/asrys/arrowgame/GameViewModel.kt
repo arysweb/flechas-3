@@ -236,15 +236,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val frameMs = 5L
-            val clampedScale = scale.coerceIn(0.5f, 4f)
-            var currentSpeed = (30.0f / clampedScale)
-            val maxSpeed    = (150.0f / clampedScale)
-            val acceleration = (400.0f / clampedScale)
+            val constantSpeed = 40.0f // Constant speed regardless of zoom
             var progress = 0f
             while (progress < maxProgress) {
                 delay(frameMs)
-                currentSpeed = (currentSpeed + acceleration * (frameMs / 1000f)).coerceAtMost(maxSpeed)
-                progress = (progress + currentSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
+                progress = (progress + constantSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
                 val progressSnapshot = progress
                 _state.update { state ->
                     if (state.puzzle?.id != puzzleId) return@update state
@@ -291,17 +287,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val frameMs = 5L
-            // Speed is in cells/second. Divide by scale so that at 2× zoom,
-            // the arrow travels at the same perceived pixel speed as at 1× zoom.
-            val clampedScale = scale.coerceIn(0.5f, 4f)
-            var currentSpeed = (30.0f / clampedScale)  // fast start
-            val maxSpeed    = (150.0f / clampedScale)  // capped top speed
-            val acceleration = (400.0f / clampedScale) // ramp-up
+            val constantSpeed = 40.0f // Constant speed regardless of zoom
             var progress = 0f
             while (progress < maxProgress) {
                 delay(frameMs)
-                currentSpeed = (currentSpeed + acceleration * (frameMs / 1000f)).coerceAtMost(maxSpeed)
-                progress = (progress + currentSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
+                progress = (progress + constantSpeed * (frameMs / 1000f)).coerceAtMost(maxProgress)
                 val progressSnapshot = progress
                 _state.update { state ->
                     if (state.puzzle?.id != puzzleId) return@update state
