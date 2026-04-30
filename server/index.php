@@ -303,7 +303,7 @@ function handleSubmitStats($pdo) {
                 // Backfill/link device to player so future gameplay updates can resolve by device_id only.
                 $linkStmt = $pdo->prepare("
                     UPDATE players
-                    SET device_id = COALESCE(players.device_id, ?),
+                    SET device_id = COALESCE(?, players.device_id),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE LOWER(email) = LOWER(?)
                 ");
@@ -344,6 +344,30 @@ function handleGetProgress(PDO $pdo): void {
     }
 
     try {
+        $playerEmail = resolvePlayerEmailForProgress($pdo, $_GET, $deviceId);
+
+        if ($playerEmail !== null) {
+            ensurePlayersTable($pdo);
+            $stmt = $pdo->prepare("
+                SELECT current_puzzle_number, max_puzzle_number
+                FROM players
+                WHERE email = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$playerEmail]);
+            $row = $stmt->fetch();
+
+            if ($row) {
+                echo json_encode([
+                    'device_id' => $deviceId,
+                    'current_puzzle_number' => max(1, (int)$row['current_puzzle_number']),
+                    'max_puzzle_number' => max(1, (int)$row['max_puzzle_number']),
+                    'found' => true
+                ]);
+                return;
+            }
+        }
+
         ensureDeviceProgressColumns($pdo);
         $stmt = $pdo->prepare("
             SELECT current_puzzle_number, max_puzzle_number
@@ -417,7 +441,7 @@ function handleSaveProgress(PDO $pdo): void {
                 // Backfill/link device to player so future gameplay updates can resolve by device_id only.
                 $linkStmt = $pdo->prepare("
                     UPDATE players
-                    SET device_id = COALESCE(players.device_id, ?),
+                    SET device_id = COALESCE(?, players.device_id),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE LOWER(email) = LOWER(?)
                 ");
@@ -672,7 +696,7 @@ function upsertPlayerStatsByEmail(PDO $pdo, string $email, ?string $deviceId, fl
             CURRENT_TIMESTAMP
         )
         ON CONFLICT (email) DO UPDATE SET
-            device_id = COALESCE(players.device_id, EXCLUDED.device_id),
+            device_id = COALESCE(EXCLUDED.device_id, players.device_id),
             puzzles_played = players.puzzles_played + 1,
             total_play_time_seconds = players.total_play_time_seconds + EXCLUDED.total_play_time_seconds,
             last_seen_at = CURRENT_TIMESTAMP,
@@ -709,7 +733,7 @@ function upsertPlayerProgressByEmail(PDO $pdo, string $email, ?string $deviceId,
             CURRENT_TIMESTAMP
         )
         ON CONFLICT (email) DO UPDATE SET
-            device_id = COALESCE(players.device_id, EXCLUDED.device_id),
+            device_id = COALESCE(EXCLUDED.device_id, players.device_id),
             max_puzzle_number = GREATEST(players.max_puzzle_number, EXCLUDED.max_puzzle_number),
             current_puzzle_number = EXCLUDED.current_puzzle_number,
             last_seen_at = CURRENT_TIMESTAMP,
@@ -810,6 +834,24 @@ function handleCreatePlayer(PDO $pdo): void {
     $stmt->execute([$email]);
     $alreadyExisted = $stmt->fetch() !== false;
 
+    $currentPuzzle = 1;
+    $maxPuzzle = 1;
+    $puzzlesPlayed = 0;
+    $playTime = 0.0;
+
+    if ($deviceId !== null && !$alreadyExisted) {
+        ensureDeviceProgressColumns($pdo);
+        $devStmt = $pdo->prepare("SELECT current_puzzle_number, max_puzzle_number, puzzles_played, total_play_time_seconds FROM devices WHERE device_id = ? LIMIT 1");
+        $devStmt->execute([$deviceId]);
+        $devRow = $devStmt->fetch();
+        if ($devRow) {
+            $currentPuzzle = (int)$devRow['current_puzzle_number'];
+            $maxPuzzle = (int)$devRow['max_puzzle_number'];
+            $puzzlesPlayed = (int)$devRow['puzzles_played'];
+            $playTime = (float)$devRow['total_play_time_seconds'];
+        }
+    }
+
     $stmt = $pdo->prepare("
         INSERT INTO players (
             email,
@@ -823,13 +865,13 @@ function handleCreatePlayer(PDO $pdo): void {
             created_at,
             updated_at
         )
-        VALUES (?, ?, ?, 1, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (email) DO UPDATE SET
             device_id = COALESCE(EXCLUDED.device_id, players.device_id),
             last_seen_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
     ");
-    $stmt->execute([$email, $playerName, $deviceId]);
+    $stmt->execute([$email, $playerName, $deviceId, $currentPuzzle, $maxPuzzle, $puzzlesPlayed, $playTime]);
 
     echo json_encode([
         'success' => true,
